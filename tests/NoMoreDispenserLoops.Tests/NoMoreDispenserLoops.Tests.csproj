@@ -1,0 +1,25 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <TargetFramework>net8.0</TargetFramework>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>disable</Nullable>
+    <IsPackable>false</IsPackable>
+    <IsTestProject>true</IsTestProject>
+  </PropertyGroup>
+  <ItemGroup>
+    <PackageReference Include="Microsoft.NET.Test.Sdk" Version="17.12.0" />
+    <PackageReference Include="Newtonsoft.Json" Version="13.0.3" />
+    <PackageReference Include="PLib" Version="4.26.0" />
+    <PackageReference Include="Lib.Harmony.Ref" Version="2.4.2" Aliases="plib_harmony" PrivateAssets="all" />
+    <PackageReference Include="xunit" Version="2.9.3" />
+    <PackageReference Include="xunit.runner.visualstudio" Version="2.8.2" PrivateAssets="all" />
+  </ItemGroup>
+  <ItemGroup>
+    <Compile Include="../../src/NoMoreDispenserLoops/Core/DropTileRegistry.cs" Link="Production/Core/DropTileRegistry.cs" />
+    <Compile Include="../../src/NoMoreDispenserLoops/ModOptions.cs" Link="Production/ModOptions.cs" />
+    <Compile Include="../../src/NoMoreDispenserLoops/Core/DispenserFetchFilter.cs" Link="Production/Core/DispenserFetchFilter.cs" />
+    <Compile Include="../../src/NoMoreDispenserLoops/UI/HigherPriorityCheckbox.cs" Link="Production/UI/HigherPriorityCheckbox.cs" />
+    <Compile Include="../../src/NoMoreDispenserLoops/UI/DropTileHighlight.cs" Link="Production/UI/DropTileHighlight.cs" />
+    <Compile Include="../../src/NoMoreDispenserLoops/Core/NoMoreDispenserLoopsComponent.cs" Link="Production/Core/NoMoreDispenserLoopsComponent.cs" />
+  </ItemGroup>
+</Project>

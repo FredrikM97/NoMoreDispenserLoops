@@ -1,0 +1,17 @@
+.vs/
+.vscode/
+.idea/
+**/bin/
+**/obj/
+**/TestResults/
+/dist/
+/lib/*
+!/lib/.gitkeep
+*.dll
+*.exe
+*.pdb
+*.zip
+*.user
+*.suo
+*.cache
+.DS_Store

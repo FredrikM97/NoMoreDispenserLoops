@@ -1,0 +1,154 @@
+name: Release
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+    inputs:
+      action:
+        description: Action
+        type: choice
+        required: true
+        default: update_draft
+        options: [update_draft, publish]
+      bump:
+        description: Version bump (for publish)
+        type: choice
+        required: true
+        default: patch
+        options: [patch, minor, major]
+
+permissions:
+  contents: write
+
+concurrency:
+  group: release
+  cancel-in-progress: false
+
+jobs:
+  draft:
+    if: github.ref == 'refs/heads/main' && (github.event_name == 'push' || inputs.action == 'update_draft')
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+      - name: Update rolling draft
+        env:
+          GH_TOKEN: ${{ github.token }}
+          REPOSITORY: ${{ github.repository }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          last_tag=$(git tag --list 'v*' | awk '/^v[0-9]+\.[0-9]+\.[0-9]+$/' | sort -V | tail -n 1)
+          range=HEAD
+          if [[ -n "$last_tag" ]]; then
+            range="$last_tag..HEAD"
+          fi
+          {
+            echo '## Changes'
+            git log "$range" --no-merges --format='- %s (%h)'
+            echo
+            if [[ -n "$last_tag" ]]; then
+              echo "**Full changelog:** https://github.com/$REPOSITORY/compare/$last_tag...main"
+            else
+              echo "**Full changelog:** https://github.com/$REPOSITORY/commits/main"
+            fi
+          } > release-notes.md
+
+          existing=$(gh release list --limit 1000 --json tagName,isDraft \
+            --jq '[.[] | select(.tagName == "unreleased") | if .isDraft then "draft" else "published" end] | first // "missing"')
+          if [[ "$existing" == draft ]]; then
+            gh release edit unreleased --title Unreleased --notes-file release-notes.md --target main --draft
+          elif [[ "$existing" == published ]]; then
+            echo "::error::The unreleased release already exists and is not a draft."
+            exit 1
+          else
+            gh release create unreleased --title Unreleased --notes-file release-notes.md --target main --draft
+          fi
+
+  publish:
+    if: github.ref == 'refs/heads/main' && github.event_name == 'workflow_dispatch' && inputs.action == 'publish'
+    runs-on: [self-hosted, linux, oni-managed]
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+      - name: Check release prerequisites
+        env:
+          GH_TOKEN: ${{ github.token }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          if [[ -z "${ONI_MANAGED_DIR:-}" || ! -f "$ONI_MANAGED_DIR/Assembly-CSharp.dll" ]]; then
+            echo "::error::Set ONI_MANAGED_DIR on the runner to your local ONI Managed directory."
+            exit 1
+          fi
+          draft=$(gh release list --limit 1000 --json tagName,isDraft \
+            --jq '[.[] | select(.tagName == "unreleased") | if .isDraft then "draft" else "published" end] | first // "missing"')
+          if [[ "$draft" != draft ]]; then
+            echo "::error::Create the unreleased draft before publishing."
+            exit 1
+          fi
+          dotnet --info
+      - name: Determine version
+        id: version
+        env:
+          BUMP: ${{ inputs.bump }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          last_tag=$(git tag --list 'v*' | awk '/^v[0-9]+\.[0-9]+\.[0-9]+$/' | sort -V | tail -n 1)
+          base=${last_tag#v}
+          base=${base:-0.0.0}
+          IFS=. read -r major minor patch <<< "$base"
+          case "$BUMP" in
+            major) major=$((10#$major + 1)); minor=0; patch=0 ;;
+            minor) minor=$((10#$minor + 1)); patch=0 ;;
+            patch) patch=$((10#$patch + 1)) ;;
+            *) echo "::error::Invalid version bump."; exit 1 ;;
+          esac
+          version="$major.$minor.$patch"
+          if git rev-parse --verify --quiet "refs/tags/v$version" >/dev/null; then
+            echo "::error::Tag v$version already exists."
+            exit 1
+          fi
+          echo "version=$version" >> "$GITHUB_OUTPUT"
+          echo "last_tag=$last_tag" >> "$GITHUB_OUTPUT"
+      - name: Test and build
+        env:
+          VERSION: ${{ steps.version.outputs.version }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          dotnet test tests/NoMoreDispenserLoops.Tests/NoMoreDispenserLoops.Tests.csproj -c Release
+          bash scripts/package.sh "$VERSION" "$RUNNER_TEMP"
+      - name: Publish draft
+        env:
+          GH_TOKEN: ${{ github.token }}
+          VERSION: ${{ steps.version.outputs.version }}
+          LAST_TAG: ${{ steps.version.outputs.last_tag }}
+          COMMIT: ${{ github.sha }}
+          REPOSITORY: ${{ github.repository }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          range="$COMMIT"
+          if [[ -n "$LAST_TAG" ]]; then
+            range="$LAST_TAG..$COMMIT"
+          fi
+          {
+            echo '## Changes'
+            git log "$range" --no-merges --format='- %s (%h)'
+            echo
+            if [[ -n "$LAST_TAG" ]]; then
+              echo "**Full changelog:** https://github.com/$REPOSITORY/compare/$LAST_TAG...v$VERSION"
+            else
+              echo "**Full changelog:** https://github.com/$REPOSITORY/commits/v$VERSION"
+            fi
+          } > release-notes.md
+          gh release upload unreleased "$RUNNER_TEMP/NoMoreDispenserLoops-$VERSION.zip" --clobber
+          gh release edit unreleased --tag "v$VERSION" --title "v$VERSION" \
+            --notes-file release-notes.md --target "$COMMIT" --draft=false --latest

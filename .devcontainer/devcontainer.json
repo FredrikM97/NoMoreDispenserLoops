@@ -1,0 +1,21 @@
+{
+  "name": "ONI Mod DevContainer (NoMoreDispenserLoops)",
+  "build": { "dockerfile": "Dockerfile", "context": ".." },
+  // Optional: uncomment and replace the source paths with existing host paths.
+  // On Codespaces, upload the DLLs to lib/ instead of mounting a local path.
+  // "mounts": [
+  //   "source=/absolute/host/path/to/Managed,target=${containerWorkspaceFolder}/lib,type=bind",
+  //   "source=/absolute/host/path/to/mods/Dev,target=${containerWorkspaceFolder}/dist,type=bind"
+  // ],
+  "customizations": {
+    "vscode": {
+      "extensions": [
+        "ms-dotnettools.csdevkit",
+        "ms-dotnettools.csharp",
+        "redhat.vscode-yaml"
+      ]
+    }
+  },
+  "postCreateCommand": "dotnet --info && which ilspycmd || true",
+  "remoteUser": "root"
+}

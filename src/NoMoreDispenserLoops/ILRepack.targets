@@ -1,0 +1,13 @@
+<Project>
+  <Target Name="MergePLib" AfterTargets="Build">
+    <ItemGroup>
+      <MergeAssemblies Include="$(IntermediateOutputPath)$(TargetName)$(TargetExt)" />
+      <MergeAssemblies Include="$(TargetDir)PLib.dll" />
+    </ItemGroup>
+    <ILRepack InputAssemblies="@(MergeAssemblies)"
+              OutputFile="$(TargetPath)"
+              LibraryPath="$(GameManagedDir);$(TargetDir)"
+              TargetKind="SameAsPrimaryAssembly"
+              DebugInfo="true" />
+  </Target>
+</Project>
