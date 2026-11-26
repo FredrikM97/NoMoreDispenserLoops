@@ -11,8 +11,6 @@ internal sealed class DispenserOptionsSideScreen : SideScreenContent
     private GameObject options;
     private GameObject excludeCheckbox;
     private GameObject priorityCheckbox;
-    private LocText headerLabel;
-    private bool expanded;
 
     public override bool IsValidForTarget(GameObject candidate)
     {
@@ -52,11 +50,6 @@ internal sealed class DispenserOptionsSideScreen : SideScreenContent
         if (options != null)
             return;
 
-        var header = new PButton("DispenserOptionsHeader")
-        {
-            Text = "No More Dispenser Loops",
-            OnClick = ToggleExpanded
-        }.SetKleiBlueStyle().AddOnRealize(go => headerLabel = go.GetComponentInChildren<LocText>());
         var exclude = new PCheckBox("ExcludeDropTile")
         {
             Text = target.CheckboxLabel,
@@ -73,18 +66,9 @@ internal sealed class DispenserOptionsSideScreen : SideScreenContent
             .AddChild(exclude)
             .AddChild(priority)
             .AddOnRealize(go => options = go);
-        GameObject content = new PPanel("DispenserOptionsContent")
-            .AddChild(header)
-            .AddChild(optionPanel)
-            .Build();
+        GameObject content = optionPanel.Build();
         content.transform.SetParent(transform, false);
         GlobalSettings.Changed += Refresh;
-    }
-
-    private void ToggleExpanded(GameObject source)
-    {
-        expanded = !expanded;
-        Refresh();
     }
 
     private void ToggleExclusion(GameObject source, int state)
@@ -103,8 +87,6 @@ internal sealed class DispenserOptionsSideScreen : SideScreenContent
     {
         if (target == null || options == null)
             return;
-        headerLabel.text = (expanded ? "- " : "+ ") + "No More Dispenser Loops";
-        options.SetActive(expanded);
         priorityCheckbox.SetActive(GlobalSettings.EnablePriorityExceptions);
         PCheckBox.SetCheckState(excludeCheckbox, target.GetCheckboxValue() ? PCheckBox.STATE_CHECKED : PCheckBox.STATE_UNCHECKED);
         PCheckBox.SetCheckState(priorityCheckbox, priorityControl.GetCheckboxValue() ? PCheckBox.STATE_CHECKED : PCheckBox.STATE_UNCHECKED);

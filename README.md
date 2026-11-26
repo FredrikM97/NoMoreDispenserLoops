@@ -9,9 +9,8 @@ refill Automatic Dispensers. Other errands and Auto-Sweepers are unaffected.
    folder (create `Local` if needed). The DLL, `mod.yaml`, and `mod_info.yaml`
    must be directly inside `Local/NoMoreDispenserLoops/`.
 2. Enable the mod in the game's Mods menu and restart.
-3. Select a dispenser, expand **No More Dispenser Loops**, and enable
-   **Exclude Drop Tile** (off by default). The protected landing cell is
-   highlighted while the dispenser is selected.
+3. Select a dispenser and enable **Exclude Drop Tile** (off by default). The
+   protected landing cell is highlighted while the dispenser is selected.
 
 Optionally enable **Allow Higher-Priority Dispensers** on a source dispenser.
 The game's mod options can disable this exception globally, hiding its
