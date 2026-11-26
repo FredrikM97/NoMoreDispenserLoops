@@ -48,7 +48,9 @@ public sealed class FetchFilterTests : RegistryTest
         var scenario = new FetchScenario();
         var context = new Chore.Precondition.Context
         {
-            chore = scenario.Chore, consumerState = Duplicant(), data = scenario.DropPile
+            chore = scenario.Chore,
+            consumerState = Duplicant(),
+            data = scenario.DropPile
         };
 
         DispenserFetchPreconditionPatch.Prefix(ref context);

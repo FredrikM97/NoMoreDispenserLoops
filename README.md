@@ -25,13 +25,18 @@ mod, and check its settings; the new ID and component name may reset them.
 The Dev Container includes .NET 8 and `zip`; rebuild an existing container to
 install `zip`. Outside the container, install both tools yourself.
 
+Run format checks and tests locally with:
+
+```bash
+bash scripts/check.sh
+```
+
 Building requires your ONI `OxygenNotIncluded_Data/Managed` DLLs: copy them
 into `lib/`, or set `ONI_MANAGED_DIR` to that directory. They are ignored by
-Git and are not needed to install a built mod. Then run:
+Git and are not needed to install a built mod. Build the package with:
 
 ```bash
 bash scripts/package.sh
-dotnet test tests/NoMoreDispenserLoops.Tests/NoMoreDispenserLoops.Tests.csproj -c Release
 ```
 
 The script creates `dist/NoMoreDispenserLoops/` and `dist/NoMoreDispenserLoops.zip`.
