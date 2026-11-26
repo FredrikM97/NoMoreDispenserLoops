@@ -22,9 +22,10 @@ mod, and check its settings; the new ID and component name may reset them.
 
 ## Build and test
 
-The Dev Container includes .NET 8, Git, GitHub CLI, SSH, `zip`, and `unzip`.
-Rebuild an existing container after changes to its configuration. Outside the
-container, install the tools you need yourself.
+The Dev Container includes .NET 8, Git, GitHub CLI, SSH, zsh, `zip`, and
+`unzip`. Its integrated terminal uses zsh by default. Rebuild an existing
+container after changes to its configuration. Outside the container, install
+the tools you need yourself.
 
 Run format checks and tests locally with:
 
