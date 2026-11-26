@@ -70,29 +70,28 @@ jobs:
 
   publish:
     if: github.ref == 'refs/heads/main' && github.event_name == 'workflow_dispatch' && inputs.action == 'publish'
-    runs-on: [self-hosted, linux, oni-managed]
+    runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v7
         with:
           fetch-depth: 0
           persist-credentials: false
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: 8.0.x
       - name: Check release prerequisites
         env:
           GH_TOKEN: ${{ github.token }}
         shell: bash
         run: |
           set -euo pipefail
-          if [[ -z "${ONI_MANAGED_DIR:-}" || ! -f "$ONI_MANAGED_DIR/Assembly-CSharp.dll" ]]; then
-            echo "::error::Set ONI_MANAGED_DIR on the runner to your local ONI Managed directory."
-            exit 1
-          fi
           draft=$(gh release list --limit 1000 --json tagName,isDraft \
             --jq '[.[] | select(.tagName == "unreleased") | if .isDraft then "draft" else "published" end] | first // "missing"')
           if [[ "$draft" != draft ]]; then
             echo "::error::Create the unreleased draft before publishing."
             exit 1
           fi
-          dotnet --info
+          gh release download unreleased --pattern NoMoreDispenserLoops.zip --dir "$RUNNER_TEMP"
       - name: Determine version
         id: version
         env:
@@ -117,14 +116,33 @@ jobs:
           fi
           echo "version=$version" >> "$GITHUB_OUTPUT"
           echo "last_tag=$last_tag" >> "$GITHUB_OUTPUT"
-      - name: Test and build
+      - name: Test
+        run: dotnet test tests/NoMoreDispenserLoops.Tests/NoMoreDispenserLoops.Tests.csproj -c Release
+      - name: Prepare release package
         env:
           VERSION: ${{ steps.version.outputs.version }}
         shell: bash
         run: |
           set -euo pipefail
-          dotnet test tests/NoMoreDispenserLoops.Tests/NoMoreDispenserLoops.Tests.csproj -c Release
-          bash scripts/package.sh "$VERSION" "$RUNNER_TEMP"
+          archive="$RUNNER_TEMP/NoMoreDispenserLoops.zip"
+          package="$RUNNER_TEMP/package/NoMoreDispenserLoops"
+          mkdir -p "$package"
+          for file in NoMoreDispenserLoops.dll mod.yaml mod_info.yaml README.md; do
+            unzip -p "$archive" "NoMoreDispenserLoops/$file" > "$package/$file"
+            if [[ ! -s "$package/$file" ]]; then
+              echo "::error::Package contains an empty $file."
+              exit 1
+            fi
+          done
+          sed "s/^version: .*/version: $VERSION/" "$package/mod_info.yaml" > "$package/mod_info.yaml.tmp"
+          mv "$package/mod_info.yaml.tmp" "$package/mod_info.yaml"
+          grep -Fx "version: $VERSION" "$package/mod_info.yaml"
+          cd "$RUNNER_TEMP/package"
+          zip "$RUNNER_TEMP/NoMoreDispenserLoops-$VERSION.zip" \
+            NoMoreDispenserLoops/NoMoreDispenserLoops.dll \
+            NoMoreDispenserLoops/mod.yaml \
+            NoMoreDispenserLoops/mod_info.yaml \
+            NoMoreDispenserLoops/README.md
       - name: Publish draft
         env:
           GH_TOKEN: ${{ github.token }}
@@ -152,3 +170,4 @@ jobs:
           gh release upload unreleased "$RUNNER_TEMP/NoMoreDispenserLoops-$VERSION.zip" --clobber
           gh release edit unreleased --tag "v$VERSION" --title "v$VERSION" \
             --notes-file release-notes.md --target "$COMMIT" --draft=false --latest
+          gh release delete-asset "v$VERSION" NoMoreDispenserLoops.zip --yes

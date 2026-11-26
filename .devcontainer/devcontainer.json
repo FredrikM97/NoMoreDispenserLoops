@@ -1,6 +1,9 @@
 {
   "name": "ONI Mod DevContainer (NoMoreDispenserLoops)",
   "build": { "dockerfile": "Dockerfile", "context": ".." },
+  "features": {
+    "ghcr.io/devcontainers/features/github-cli:1": {}
+  },
   // Optional: uncomment and replace the source paths with existing host paths.
   // On Codespaces, upload the DLLs to lib/ instead of mounting a local path.
   // "mounts": [
