@@ -18,7 +18,7 @@ The ONI library update workflow checks weekly (and can be run manually on
 `main`). It downloads the latest Windows build and opens or updates a PR when
 the assemblies change. CI validates and packages against the PR's libraries;
 releases use the libraries already merged into `main` and do not download ONI.
-Until the first library PR is merged, CI runs game-independent checks only.
+Until libraries are committed, CI runs game-independent checks only.
 
 The update workflow and Workshop publishing use `STEAM_USERNAME` and
 `STEAM_CONFIG_VDF` from the `steam` GitHub environment. Create that
