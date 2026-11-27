@@ -3,6 +3,8 @@ name: Release
 on:
   push:
     branches: [main]
+  release:
+    types: [published]
   workflow_dispatch:
     inputs:
       action:
@@ -71,11 +73,14 @@ jobs:
   publish:
     if: github.ref == 'refs/heads/main' && github.event_name == 'workflow_dispatch' && inputs.action == 'publish'
     runs-on: ubuntu-latest
+    outputs:
+      tag: v${{ steps.version.outputs.version }}
     steps:
       - uses: actions/checkout@v7
         with:
           fetch-depth: 0
           persist-credentials: false
+          submodules: true
       - uses: actions/setup-dotnet@v4
         with:
           dotnet-version: 8.0.x
@@ -91,7 +96,6 @@ jobs:
             echo "::error::Create the unreleased draft before publishing."
             exit 1
           fi
-          gh release download unreleased --pattern NoMoreDispenserLoops.zip --dir "$RUNNER_TEMP"
       - name: Determine version
         id: version
         env:
@@ -124,25 +128,12 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          archive="$RUNNER_TEMP/NoMoreDispenserLoops.zip"
-          package="$RUNNER_TEMP/package/NoMoreDispenserLoops"
-          mkdir -p "$package"
-          for file in NoMoreDispenserLoops.dll mod.yaml mod_info.yaml README.md; do
-            unzip -p "$archive" "NoMoreDispenserLoops/$file" > "$package/$file"
-            if [[ ! -s "$package/$file" ]]; then
-              echo "::error::Package contains an empty $file."
-              exit 1
-            fi
-          done
-          sed "s/^version: .*/version: $VERSION/" "$package/mod_info.yaml" > "$package/mod_info.yaml.tmp"
-          mv "$package/mod_info.yaml.tmp" "$package/mod_info.yaml"
-          grep -Fx "version: $VERSION" "$package/mod_info.yaml"
-          cd "$RUNNER_TEMP/package"
-          zip "$RUNNER_TEMP/NoMoreDispenserLoops-$VERSION.zip" \
-            NoMoreDispenserLoops/NoMoreDispenserLoops.dll \
-            NoMoreDispenserLoops/mod.yaml \
-            NoMoreDispenserLoops/mod_info.yaml \
-            NoMoreDispenserLoops/README.md
+          bash scripts/package.sh "$VERSION" "$RUNNER_TEMP/package"
+          oni_build=$(<"$RUNNER_TEMP/package/NoMoreDispenserLoops/oni-build.txt")
+          if [[ ! "$oni_build" =~ ^[0-9]+$ ]]; then
+            echo "::error::Package contains an invalid ONI build."
+            exit 1
+          fi
       - name: Publish draft
         env:
           GH_TOKEN: ${{ github.token }}
@@ -157,7 +148,10 @@ jobs:
           if [[ -n "$LAST_TAG" ]]; then
             range="$LAST_TAG..$COMMIT"
           fi
+          oni_build=$(<"$RUNNER_TEMP/package/NoMoreDispenserLoops/oni-build.txt")
           {
+            echo "**Built against ONI build:** $oni_build"
+            echo
             echo '## Changes'
             git log "$range" --no-merges --format='- %s (%h)'
             echo
@@ -167,7 +161,75 @@ jobs:
               echo "**Full changelog:** https://github.com/$REPOSITORY/commits/v$VERSION"
             fi
           } > release-notes.md
-          gh release upload unreleased "$RUNNER_TEMP/NoMoreDispenserLoops-$VERSION.zip" --clobber
+          gh release upload unreleased "$RUNNER_TEMP/package/NoMoreDispenserLoops-$VERSION.zip" --clobber
+          legacy_asset=$(gh release view unreleased --json assets --jq '[.assets[].name | select(. == "NoMoreDispenserLoops.zip")] | first // ""')
+          if [[ -n "$legacy_asset" ]]; then
+            gh release delete-asset unreleased "$legacy_asset" --yes
+          fi
           gh release edit unreleased --tag "v$VERSION" --title "v$VERSION" \
             --notes-file release-notes.md --target "$COMMIT" --draft=false --latest
-          gh release delete-asset "v$VERSION" NoMoreDispenserLoops.zip --yes
+
+  workshop:
+    needs: publish
+    if: always() && (needs.publish.result == 'success' || github.event_name == 'release')
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+      - name: Check Workshop configuration
+        env:
+          STEAM_USERNAME: ${{ secrets.STEAM_USERNAME }}
+          STEAM_CONFIG_VDF: ${{ secrets.STEAM_CONFIG_VDF }}
+          STEAM_WORKSHOP_ITEM_ID: ${{ vars.STEAM_WORKSHOP_ITEM_ID }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          if [[ -z "$STEAM_USERNAME" || -z "$STEAM_CONFIG_VDF" ]]; then
+            echo "::error::Configure the STEAM_USERNAME and STEAM_CONFIG_VDF secrets."
+            exit 1
+          fi
+          if [[ ! "$STEAM_WORKSHOP_ITEM_ID" =~ ^0*[1-9][0-9]*$ ]]; then
+            echo "::error::Configure STEAM_WORKSHOP_ITEM_ID with an existing item ID."
+            exit 1
+          fi
+      - name: Download release package
+        env:
+          GH_TOKEN: ${{ github.token }}
+          REPOSITORY: ${{ github.repository }}
+          TAG: ${{ needs.publish.outputs.tag || github.event.release.tag_name }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          if [[ ! "$TAG" =~ ^v([0-9]+\.[0-9]+\.[0-9]+)$ ]]; then
+            echo "::error::Workshop releases require a vMAJOR.MINOR.PATCH tag."
+            exit 1
+          fi
+          version=${BASH_REMATCH[1]}
+          mkdir -p "$GITHUB_WORKSPACE/workshop-upload"
+          gh release download "$TAG" --repo "$REPOSITORY" \
+            --pattern "NoMoreDispenserLoops-$version.zip" --dir "$RUNNER_TEMP"
+          archive="$RUNNER_TEMP/NoMoreDispenserLoops-$version.zip"
+          for file in NoMoreDispenserLoops.dll mod.yaml mod_info.yaml README.md; do
+            if ! unzip -p "$archive" "NoMoreDispenserLoops/$file" > "$GITHUB_WORKSPACE/workshop-upload/$file"; then
+              echo "::error::Release package is missing $file."
+              exit 1
+            fi
+            if [[ ! -s "$GITHUB_WORKSPACE/workshop-upload/$file" ]]; then
+              echo "::error::Release package contains an empty $file."
+              exit 1
+            fi
+          done
+          if ! grep -Fxq "version: $version" "$GITHUB_WORKSPACE/workshop-upload/mod_info.yaml"; then
+            echo "::error::Release package version does not match $TAG."
+            exit 1
+          fi
+          echo "RELEASE_VERSION=$version" >> "$GITHUB_ENV"
+      - name: Publish to Steam Workshop
+        uses: m00nl1ght-dev/steam-workshop-deploy@v4
+        with:
+          username: ${{ secrets.STEAM_USERNAME }}
+          configVdf: ${{ secrets.STEAM_CONFIG_VDF }}
+          path: workshop-upload
+          appId: 457140
+          publishedFileId: ${{ vars.STEAM_WORKSHOP_ITEM_ID }}
+          changeNote: Release ${{ needs.publish.outputs.tag || github.event.release.tag_name }}

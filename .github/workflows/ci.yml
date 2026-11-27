@@ -14,8 +14,12 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v7
+        with:
+          submodules: true
       - uses: actions/setup-dotnet@v6
         with:
           dotnet-version: 8.0.x
       - name: Run format checks and tests
         run: bash scripts/check.sh
+      - name: Build package with ONI references
+        run: bash scripts/package.sh

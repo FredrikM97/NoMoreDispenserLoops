@@ -1,7 +1,7 @@
 <Project>
   <PropertyGroup>
     <GameManagedDir Condition="'$(GameManagedDir)' == '' and '$(ONI_MANAGED_DIR)' != ''">$(ONI_MANAGED_DIR)</GameManagedDir>
-    <GameManagedDir Condition="'$(GameManagedDir)' == ''">$(MSBuildThisFileDirectory)..\..\lib</GameManagedDir>
+    <GameManagedDir Condition="'$(GameManagedDir)' == ''">$(MSBuildThisFileDirectory)..\..\references\ONIMods\Lib</GameManagedDir>
     <ModOutputDir Condition="'$(ModOutputDir)' == '' and '$(ONI_MODS_DIR)' != ''">$(ONI_MODS_DIR)\NoMoreDispenserLoops</ModOutputDir>
     <ModOutputDir Condition="'$(ModOutputDir)' == ''">$(MSBuildThisFileDirectory)..\..\dist\NoMoreDispenserLoops</ModOutputDir>
   </PropertyGroup>

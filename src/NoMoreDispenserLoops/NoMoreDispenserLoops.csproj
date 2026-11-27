@@ -30,7 +30,7 @@
   </ItemGroup>
 
   <Target Name="ValidateGameAssemblies" BeforeTargets="ResolveReferences">
-    <Error Condition="!Exists('$(GameManagedDir)/Assembly-CSharp.dll')" Text="ONI Managed assemblies not found. Set ONI_MANAGED_DIR to OxygenNotIncluded_Data/Managed or copy the required DLLs into lib/." />
+    <Error Condition="!Exists('$(GameManagedDir)/Assembly-CSharp.dll')" Text="ONI reference assemblies not found. Run 'git submodule update --init' or set ONI_MANAGED_DIR to the game's Managed directory." />
     <Error Condition="!Exists('$(GameManagedDir)/Assembly-CSharp-firstpass.dll')" Text="Assembly-CSharp-firstpass.dll not found in $(GameManagedDir)." />
     <Error Condition="!Exists('$(GameManagedDir)/0Harmony.dll')" Text="0Harmony.dll not found in $(GameManagedDir)." />
     <Error Condition="!Exists('$(GameManagedDir)/UnityEngine.dll')" Text="UnityEngine.dll not found in $(GameManagedDir)." />
@@ -41,8 +41,12 @@
     <Error Condition="!Exists('$(GameManagedDir)/Newtonsoft.Json.dll')" Text="Newtonsoft.Json.dll not found in $(GameManagedDir)." />
   </Target>
 
-  <Target Name="CopyModToOutput" AfterTargets="MergePLib">
+  <Target Name="WriteOniBuildInfo">
     <MakeDir Directories="$(ModOutputDir)" />
+    <Exec Command="dotnet run --project &quot;$(MSBuildProjectDirectory)/../../scripts/OniBuildInfo/OniBuildInfo.csproj&quot; -- &quot;$(GameManagedDir)/Assembly-CSharp.dll&quot; &quot;$(ModOutputDir)/oni-build.txt&quot;" />
+  </Target>
+
+  <Target Name="CopyModToOutput" AfterTargets="MergePLib" DependsOnTargets="WriteOniBuildInfo">
     <Copy SourceFiles="$(TargetPath)" DestinationFolder="$(ModOutputDir)" />
     <Copy SourceFiles="$(MSBuildProjectDirectory)/mod.yaml;$(MSBuildProjectDirectory)/mod_info.yaml;$(MSBuildProjectDirectory)/../../README.md" DestinationFolder="$(ModOutputDir)" />
   </Target>

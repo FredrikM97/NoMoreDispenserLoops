@@ -51,19 +51,3 @@ bash scripts/package.sh
 
 The script creates `dist/NoMoreDispenserLoops/` and `dist/NoMoreDispenserLoops.zip`.
 Both are ignored by Git. Tests use game stubs and do not verify in-game behavior.
-
-## Releases
-
-Pushes to `main` update a draft release. The **Dependabot Auto-merge** workflow
-can also be run manually to check open Dependabot PRs; it merges only PRs with
-successful checks and refreshes the draft notes after a merge. This does not
-start a Dependabot scan.
-
-To publish, first check out the `main` commit to be released and build locally
-with the game DLLs in `lib/` or `ONI_MANAGED_DIR`. Install the GitHub CLI and
-make sure the **Unreleased** draft exists. With a clean `main` checkout
-matching the pushed GitHub branch, run:
-
-```bash
-bash scripts/release.sh
-```
