@@ -1,0 +1,94 @@
+name: Update ONI libraries
+
+on:
+  schedule:
+    - cron: '17 4 * * 1'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: update-oni-libraries
+  cancel-in-progress: false
+
+jobs:
+  download:
+    if: github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    environment: steam
+    outputs:
+      build: ${{ steps.assemblies.outputs.build }}
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+      - uses: actions/setup-dotnet@v6
+        with:
+          dotnet-version: 8.0.x
+      - name: Download latest ONI build
+        uses: ./.github/actions/download-oni
+        with:
+          steam-username: ${{ secrets.STEAM_USERNAME }}
+          steam-config-vdf: ${{ secrets.STEAM_CONFIG_VDF }}
+      - name: Prepare assemblies
+        id: assemblies
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p "$RUNNER_TEMP/oni-libs"
+          cp "$ONI_MANAGED_DIR"/*.dll "$RUNNER_TEMP/oni-libs/"
+          dotnet run --project scripts/OniBuildInfo/OniBuildInfo.csproj -- \
+            "$ONI_MANAGED_DIR/Assembly-CSharp.dll" "$RUNNER_TEMP/oni-build.txt"
+          build=$(<"$RUNNER_TEMP/oni-build.txt")
+          if [[ ! "$build" =~ ^[0-9]+$ ]]; then
+            echo "::error::Unable to determine the ONI build number."
+            exit 1
+          fi
+          echo "build=$build" >> "$GITHUB_OUTPUT"
+      - name: Transfer assemblies
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: oni-managed-assemblies
+          path: ${{ runner.temp }}/oni-libs/*.dll
+          if-no-files-found: error
+          retention-days: 1
+
+  pull-request:
+    needs: download
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+      pull-requests: write
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          ref: main
+          persist-credentials: false
+      - name: Retrieve assemblies
+        uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4
+        with:
+          name: oni-managed-assemblies
+          path: ${{ runner.temp }}/oni-libs
+      - name: Update libraries
+        shell: bash
+        run: |
+          set -euo pipefail
+          while IFS= read -r -d '' old; do
+            if [[ ! -f "$RUNNER_TEMP/oni-libs/${old#lib/}" ]]; then
+              rm -- "$old"
+            fi
+          done < <(git ls-files -z -- 'lib/*.dll')
+          cp "$RUNNER_TEMP"/oni-libs/*.dll lib/
+      - name: Create or update pull request
+        uses: peter-evans/create-pull-request@3ffccacd46053766916f087ce41d627c0b8cf2d1 # v8
+        with:
+          branch: automation/update-oni-libraries
+          base: main
+          add-paths: lib
+          commit-message: |
+            Update ONI libraries to build ${{ needs.download.outputs.build }}
+
+            Co-authored-by: Copilot <223556219+Copilot@users.noreply.github.com>
+          title: "Update ONI libraries to build ${{ needs.download.outputs.build }}"
+          body: "Updates the managed assemblies used by CI and release builds to ONI build ${{ needs.download.outputs.build }}."

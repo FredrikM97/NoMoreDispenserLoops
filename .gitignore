@@ -8,6 +8,7 @@
 /lib/*
 !/lib/.gitkeep
 *.dll
+!/lib/*.dll
 *.exe
 *.pdb
 *.zip

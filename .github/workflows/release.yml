@@ -13,13 +13,8 @@ on:
         required: true
         default: update_draft
         options: [update_draft, publish]
-      mod:
-        description: Mod folder name
-        type: string
-        required: true
-        default: NoMoreDispenserLoops
       bump:
-        description: Version bump (ignored for a mod's first release)
+        description: Version bump for the shared release
         type: choice
         required: true
         default: patch
@@ -46,314 +41,127 @@ jobs:
           GH_TOKEN: ${{ github.token }}
           REPOSITORY: ${{ github.repository }}
         shell: bash
-        run: |
-          set -euo pipefail
-          last_tag=$(git for-each-ref --sort=-creatordate --format='%(refname:short)' refs/tags \
-            | grep -E '(^v[0-9]+\.[0-9]+\.[0-9]+$|^[A-Za-z0-9][A-Za-z0-9_-]*-v[0-9]+\.[0-9]+\.[0-9]+$)' \
-            | head -n 1 || true)
-          range=HEAD
-          if [[ -n "$last_tag" ]]; then
-            range="$last_tag..HEAD"
-          fi
-          {
-            echo '## Changes'
-            git log "$range" --no-merges --format='- %s (%h)'
-            echo
-            if [[ -n "$last_tag" ]]; then
-              echo "**Full changelog:** https://github.com/$REPOSITORY/compare/$last_tag...main"
-            else
-              echo "**Full changelog:** https://github.com/$REPOSITORY/commits/main"
-            fi
-          } > release-notes.md
+        run: bash scripts/release/draft.sh
 
-          existing=$(gh release list --limit 1000 --json tagName,isDraft \
-            --jq '[.[] | select(.tagName == "unreleased") | if .isDraft then "draft" else "published" end] | first // "missing"')
-          if [[ "$existing" == draft ]]; then
-            gh release edit unreleased --title Unreleased --notes-file release-notes.md --target main --draft
-          elif [[ "$existing" == published ]]; then
-            echo "::error::The unreleased release already exists and is not a draft."
-            exit 1
-          else
-            gh release create unreleased --title Unreleased --notes-file release-notes.md --target main --draft
-          fi
-
-  publish:
-    if: github.ref == 'refs/heads/main' && github.event_name == 'workflow_dispatch' && inputs.action == 'publish'
+  prepare:
+    if: >-
+      github.ref == 'refs/heads/main' && github.event_name == 'workflow_dispatch' && inputs.action == 'publish' ||
+      github.event_name == 'release' && github.event.action == 'published' &&
+      (startsWith(github.event.release.tag_name, 'v') || contains(github.event.release.tag_name, '-v'))
     runs-on: ubuntu-latest
+    env:
+      RELEASE_SCRIPTS: ${{ github.event_name == 'release' && '.release-workflow/scripts/release' || 'scripts/release' }}
     outputs:
-      tag: ${{ steps.version.outputs.tag }}
-      mod: ${{ steps.version.outputs.mod }}
-      mod_key: ${{ steps.version.outputs.mod_key }}
+      tag: ${{ steps.prepare.outputs.tag }}
+      version: ${{ steps.prepare.outputs.version }}
+      last_tag: ${{ steps.prepare.outputs.last_tag }}
+      mods: ${{ steps.prepare.outputs.mods }}
+      ref: ${{ steps.prepare.outputs.ref }}
     steps:
       - uses: actions/checkout@v7
         with:
+          ref: ${{ github.event_name == 'release' && github.event.release.tag_name || github.sha }}
+          fetch-depth: 0
+          persist-credentials: false
+      # Older release tags may not contain the scripts used by this workflow.
+      - name: Check out release scripts
+        if: github.event_name == 'release'
+        uses: actions/checkout@v7
+        with:
+          ref: ${{ github.workflow_sha }}
+          path: .release-workflow
+          persist-credentials: false
+      - name: Prepare shared release
+        id: prepare
+        env:
+          GH_TOKEN: ${{ github.token }}
+          EVENT_NAME: ${{ github.event_name }}
+          RELEASE_TAG: ${{ github.event.release.tag_name }}
+          BUMP: ${{ inputs.bump }}
+          GITHUB_SHA: ${{ github.sha }}
+        shell: bash
+        run: bash "$RELEASE_SCRIPTS/prepare.sh"
+
+  publish:
+    needs: prepare
+    if: github.ref == 'refs/heads/main' && github.event_name == 'workflow_dispatch' && inputs.action == 'publish'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          ref: ${{ needs.prepare.outputs.ref }}
           fetch-depth: 0
           persist-credentials: false
       - uses: actions/setup-dotnet@v6
         with:
           dotnet-version: 8.0.x
-      - name: Check release prerequisites
+      - name: Test all mods
+        env:
+          MODS: ${{ needs.prepare.outputs.mods }}
+        shell: bash
+        run: bash scripts/release/test.sh
+      - name: Prepare all release packages
+        env:
+          VERSION: ${{ needs.prepare.outputs.version }}
+          MODS: ${{ needs.prepare.outputs.mods }}
+        shell: bash
+        run: bash scripts/release/package.sh
+      - name: Publish combined release
         env:
           GH_TOKEN: ${{ github.token }}
-        shell: bash
-        run: |
-          set -euo pipefail
-          draft=$(gh release list --limit 1000 --json tagName,isDraft \
-            --jq '[.[] | select(.tagName == "unreleased") | if .isDraft then "draft" else "published" end] | first // "missing"')
-          if [[ "$draft" != draft ]]; then
-            echo "::error::Create the unreleased draft before publishing."
-            exit 1
-          fi
-      - name: Determine mod version
-        id: version
-        env:
-          MOD: ${{ inputs.mod }}
-          BUMP: ${{ inputs.bump }}
-        shell: bash
-        run: |
-          set -euo pipefail
-          if [[ ! "$MOD" =~ ^[A-Za-z0-9][A-Za-z0-9_-]*$ || ! -f "$MOD/$MOD.csproj" ]]; then
-            echo "::error::No top-level mod project found for '$MOD'."
-            exit 1
-          fi
-          if [[ ! -s "$MOD/mod.yaml" || ! -s "$MOD/mod_info.yaml" || ! -s "$MOD/README.md" ]]; then
-            echo "::error::Mod '$MOD' must include mod.yaml, mod_info.yaml, and README.md."
-            exit 1
-          fi
-          workshop_id_file="$MOD/steam-workshop-id.txt"
-          workshop_id=""
-          if [[ -s "$workshop_id_file" ]]; then
-            workshop_id=$(<"$workshop_id_file")
-          fi
-          if [[ ! "$workshop_id" =~ ^0*[1-9][0-9]*$ ]]; then
-            echo "::error::Set a numeric Steam Workshop item ID in $workshop_id_file."
-            exit 1
-          fi
-
-          mapfile -t mod_tags < <(git tag --list "$MOD-v*")
-          last_tag=""
-          for candidate in "${mod_tags[@]}"; do
-            if [[ "$candidate" =~ ^${MOD}-v[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
-              last_tag="$candidate"
-            fi
-          done
-          if [[ -n "$last_tag" ]]; then
-            last_tag=$(printf '%s\n' "${mod_tags[@]}" | grep -E "^${MOD}-v[0-9]+\.[0-9]+\.[0-9]+$" | sort -V | tail -n 1)
-            base=${last_tag#"$MOD-v"}
-          elif [[ "$MOD" == "NoMoreDispenserLoops" ]]; then
-            legacy_tag=$(git tag --list 'v*' | grep -E '^v[0-9]+\.[0-9]+\.[0-9]+$' | sort -V | tail -n 1 || true)
-            last_tag="$legacy_tag"
-            base=${legacy_tag#v}
-            base=${base:-0.0.0}
-          else
-            base=$(sed -nE 's/^version: ([0-9]+\.[0-9]+\.[0-9]+)$/\1/p' "$MOD/mod_info.yaml" | head -n 1)
-            if [[ -z "$base" ]]; then
-              echo "::error::No valid initial version in $MOD/mod_info.yaml."
-              exit 1
-            fi
-            version="$base"
-          fi
-
-          if [[ -n "$last_tag" || "$MOD" == "NoMoreDispenserLoops" ]]; then
-            IFS=. read -r major minor patch <<< "$base"
-            case "$BUMP" in
-              major) major=$((10#$major + 1)); minor=0; patch=0 ;;
-              minor) minor=$((10#$minor + 1)); patch=0 ;;
-              patch) patch=$((10#$patch + 1)) ;;
-              *) echo "::error::Invalid version bump."; exit 1 ;;
-            esac
-            version="$major.$minor.$patch"
-          fi
-
-          tag="$MOD-v$version"
-          if git rev-parse --verify --quiet "refs/tags/$tag" >/dev/null; then
-            echo "::error::Tag $tag already exists."
-            exit 1
-          fi
-          echo "mod=$MOD" >> "$GITHUB_OUTPUT"
-          echo "version=$version" >> "$GITHUB_OUTPUT"
-          echo "tag=$tag" >> "$GITHUB_OUTPUT"
-          echo "last_tag=$last_tag" >> "$GITHUB_OUTPUT"
-      - name: Test mod
-        env:
-          MOD: ${{ steps.version.outputs.mod }}
-        shell: bash
-        run: |
-          set -euo pipefail
-          shopt -s nullglob
-          test_projects=(tests/"$MOD"*.Tests/*.csproj)
-          for project in "${test_projects[@]}"; do
-            dotnet test "$project" -c Release
-          done
-      - name: Download latest ONI build
-        env:
-          STEAM_USERNAME: ${{ secrets.STEAM_USERNAME }}
-          STEAM_CONFIG_VDF: ${{ secrets.STEAM_CONFIG_VDF }}
-          STEAMCMD_DIR: ${{ runner.temp }}/steamcmd
-          ONI_INSTALL_DIR: ${{ runner.temp }}/oxygen-not-included
-        shell: bash
-        run: |
-          set -euo pipefail
-          if [[ -z "$STEAM_USERNAME" || -z "$STEAM_CONFIG_VDF" ]]; then
-            echo "::error::Configure STEAM_USERNAME and STEAM_CONFIG_VDF to download ONI for release builds."
-            exit 1
-          fi
-
-          sudo apt-get update
-          sudo apt-get install --no-install-recommends -y lib32gcc-s1 lib32stdc++6
-          mkdir -p "$STEAMCMD_DIR/config" "$ONI_INSTALL_DIR"
-          printf '%s' "$STEAM_CONFIG_VDF" > "$STEAMCMD_DIR/config/config.vdf"
-          chmod 600 "$STEAMCMD_DIR/config/config.vdf"
-          curl -fsSL https://steamcdn-a.akamaihd.net/client/installer/steamcmd_linux.tar.gz \
-            -o "$RUNNER_TEMP/steamcmd_linux.tar.gz"
-          tar -xzf "$RUNNER_TEMP/steamcmd_linux.tar.gz" -C "$STEAMCMD_DIR"
-
-          (
-            cd "$STEAMCMD_DIR"
-            ./steamcmd.sh +@sSteamCmdForcePlatformType windows \
-              +force_install_dir "$ONI_INSTALL_DIR" \
-              +login "$STEAM_USERNAME" +app_update 457140 validate +quit
-          )
-
-          managed_dir="$ONI_INSTALL_DIR/OxygenNotIncluded_Data/Managed"
-          if [[ ! -s "$managed_dir/Assembly-CSharp.dll" ||
-                ! -s "$managed_dir/Assembly-CSharp-firstpass.dll" ]]; then
-            echo "::error::SteamCMD did not install ONI Managed assemblies."
-            exit 1
-          fi
-          echo "ONI_MANAGED_DIR=$managed_dir" >> "$GITHUB_ENV"
-      - name: Prepare release package
-        env:
-          MOD: ${{ steps.version.outputs.mod }}
-          VERSION: ${{ steps.version.outputs.version }}
-        shell: bash
-        run: |
-          set -euo pipefail
-          bash scripts/package.sh "$MOD" "$VERSION" "$RUNNER_TEMP/package"
-          oni_build=$(<"$RUNNER_TEMP/package/$MOD/oni-build.txt")
-          if [[ ! "$oni_build" =~ ^[0-9]+$ ]]; then
-            echo "::error::Package contains an invalid ONI build."
-            exit 1
-          fi
-      - name: Publish release
-        env:
-          GH_TOKEN: ${{ github.token }}
-          MOD: ${{ steps.version.outputs.mod }}
-          VERSION: ${{ steps.version.outputs.version }}
-          TAG: ${{ steps.version.outputs.tag }}
-          LAST_TAG: ${{ steps.version.outputs.last_tag }}
+          VERSION: ${{ needs.prepare.outputs.version }}
+          TAG: ${{ needs.prepare.outputs.tag }}
+          LAST_TAG: ${{ needs.prepare.outputs.last_tag }}
+          MODS: ${{ needs.prepare.outputs.mods }}
           COMMIT: ${{ github.sha }}
           REPOSITORY: ${{ github.repository }}
         shell: bash
-        run: |
-          set -euo pipefail
-          range="$COMMIT"
-          if [[ -n "$LAST_TAG" ]]; then
-            range="$LAST_TAG..$COMMIT"
-          fi
-          oni_build=$(<"$RUNNER_TEMP/package/$MOD/oni-build.txt")
-          {
-            echo "**Mod:** $MOD"
-            echo "**Built against ONI build:** $oni_build"
-            echo
-            echo '## Changes'
-            git log "$range" --no-merges --format='- %s (%h)'
-            echo
-            if [[ -n "$LAST_TAG" ]]; then
-              echo "**Full changelog:** https://github.com/$REPOSITORY/compare/$LAST_TAG...$TAG"
-            else
-              echo "**Full changelog:** https://github.com/$REPOSITORY/commits/$TAG"
-            fi
-          } > release-notes.md
-          gh release upload unreleased "$RUNNER_TEMP/package/$MOD-$VERSION.zip" --clobber
-          legacy_asset=$(gh release view unreleased --json assets --jq '[.assets[].name | select(. == "NoMoreDispenserLoops.zip")] | first // ""')
-          if [[ -n "$legacy_asset" ]]; then
-            gh release delete-asset unreleased "$legacy_asset" --yes
-          fi
-          gh release edit unreleased --tag "$TAG" --title "$TAG" \
-            --notes-file release-notes.md --target "$COMMIT" --draft=false --latest
+        run: bash scripts/release/publish.sh
 
   workshop:
-    needs: publish
-    if: always() && (needs.publish.result == 'success' || (github.event_name == 'release' && contains(github.event.release.tag_name, '-v')))
+    needs: [prepare, publish]
+    if: >-
+      always() && needs.prepare.result == 'success' && (
+        needs.publish.result == 'success' ||
+        (github.event_name == 'release' && github.event.action == 'published' &&
+          (startsWith(github.event.release.tag_name, 'v') || contains(github.event.release.tag_name, '-v')))
+      )
     runs-on: ubuntu-latest
+    environment: steam
+    env:
+      RELEASE_SCRIPTS: ${{ github.event_name == 'release' && '.release-workflow/scripts/release' || 'scripts/release' }}
     permissions:
       contents: read
+    strategy:
+      matrix:
+        mod: ${{ fromJSON(needs.prepare.outputs.mods || '[{"name":"skip","workshop_id":"0"}]') }}
     steps:
       - uses: actions/checkout@v7
         with:
-          ref: ${{ needs.publish.outputs.tag || github.event.release.tag_name }}
+          ref: ${{ needs.prepare.outputs.ref }}
           persist-credentials: false
-      - name: Resolve mod release
-        id: release
-        env:
-          TAG: ${{ needs.publish.outputs.tag || github.event.release.tag_name }}
-        shell: bash
-        run: |
-          set -euo pipefail
-          if [[ ! "$TAG" =~ ^([A-Za-z0-9][A-Za-z0-9_-]*)-v([0-9]+\.[0-9]+\.[0-9]+)$ ]]; then
-            echo "::error::Expected a mod release tag in MOD_NAME-vMAJOR.MINOR.PATCH format."
-            exit 1
-          fi
-          mod="${BASH_REMATCH[1]}"
-          version="${BASH_REMATCH[2]}"
-          workshop_id_file="$GITHUB_WORKSPACE/$mod/steam-workshop-id.txt"
-          if [[ ! -s "$workshop_id_file" ]]; then
-            echo "::error::Missing Steam Workshop item ID file: $mod/steam-workshop-id.txt."
-            exit 1
-          fi
-          workshop_id=$(<"$workshop_id_file")
-          if [[ ! "$workshop_id" =~ ^0*[1-9][0-9]*$ ]]; then
-            echo "::error::Invalid Steam Workshop item ID in $mod/steam-workshop-id.txt."
-            exit 1
-          fi
-          echo "mod=$mod" >> "$GITHUB_OUTPUT"
-          echo "workshop_id=$workshop_id" >> "$GITHUB_OUTPUT"
-          echo "version=$version" >> "$GITHUB_OUTPUT"
-          echo "tag=$TAG" >> "$GITHUB_OUTPUT"
+      - name: Check out release scripts
+        if: github.event_name == 'release'
+        uses: actions/checkout@v7
+        with:
+          ref: ${{ github.workflow_sha }}
+          path: .release-workflow
+          persist-credentials: false
       - name: Check Workshop configuration
         env:
           STEAM_USERNAME: ${{ secrets.STEAM_USERNAME }}
           STEAM_CONFIG_VDF: ${{ secrets.STEAM_CONFIG_VDF }}
         shell: bash
-        run: |
-          set -euo pipefail
-          if [[ -z "$STEAM_USERNAME" || -z "$STEAM_CONFIG_VDF" ]]; then
-            echo "::error::Configure the STEAM_USERNAME and STEAM_CONFIG_VDF secrets."
-            exit 1
-          fi
+        run: bash "$RELEASE_SCRIPTS/check-workshop.sh"
       - name: Download release package
         env:
           GH_TOKEN: ${{ github.token }}
           REPOSITORY: ${{ github.repository }}
-          TAG: ${{ steps.release.outputs.tag }}
-          MOD: ${{ steps.release.outputs.mod }}
-          VERSION: ${{ steps.release.outputs.version }}
+          TAG: ${{ needs.prepare.outputs.tag }}
+          VERSION: ${{ needs.prepare.outputs.version }}
+          MOD: ${{ matrix.mod.name }}
         shell: bash
-        run: |
-          set -euo pipefail
-          mkdir -p "$GITHUB_WORKSPACE/workshop-upload"
-          archive="$RUNNER_TEMP/$MOD-$VERSION.zip"
-          gh release download "$TAG" --repo "$REPOSITORY" \
-            --pattern "$MOD-$VERSION.zip" --dir "$RUNNER_TEMP"
-          for file in "$MOD.dll" mod.yaml mod_info.yaml; do
-            if ! unzip -p "$archive" "$MOD/$file" > "$GITHUB_WORKSPACE/workshop-upload/$file"; then
-              echo "::error::Release package is missing $file."
-              exit 1
-            fi
-            if [[ ! -s "$GITHUB_WORKSPACE/workshop-upload/$file" ]]; then
-              echo "::error::Release package contains an empty $file."
-              exit 1
-            fi
-          done
-          if unzip -Z1 "$archive" | grep -Fxq "$MOD/THIRD-PARTY-NOTICES.txt"; then
-            unzip -p "$archive" "$MOD/THIRD-PARTY-NOTICES.txt" > "$GITHUB_WORKSPACE/workshop-upload/THIRD-PARTY-NOTICES.txt"
-          fi
-          if ! grep -Fxq "version: $VERSION" "$GITHUB_WORKSPACE/workshop-upload/mod_info.yaml"; then
-            echo "::error::Release package version does not match $TAG."
-            exit 1
-          fi
-          echo "RELEASE_VERSION=$VERSION" >> "$GITHUB_ENV"
+        run: bash "$RELEASE_SCRIPTS/download-workshop.sh"
       - name: Publish to Steam Workshop
         uses: m00nl1ght-dev/steam-workshop-deploy@v4
         with:
@@ -361,5 +169,5 @@ jobs:
           configVdf: ${{ secrets.STEAM_CONFIG_VDF }}
           path: workshop-upload
           appId: 457140
-          publishedFileId: ${{ steps.release.outputs.workshop_id }}
-          changeNote: Release ${{ steps.release.outputs.tag }}
+          publishedFileId: ${{ matrix.mod.workshop_id }}
+          changeNote: Release ${{ needs.prepare.outputs.tag }}

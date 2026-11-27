@@ -4,7 +4,7 @@ set -euo pipefail
 root=$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)
 
 if [[ $# -gt 3 ]]; then
-    echo "Usage: scripts/package.sh [MOD_NAME [VERSION [OUTPUT_DIRECTORY]]]" >&2
+    echo "Usage: scripts/package.sh [MOD_NAME|--all [VERSION [OUTPUT_DIRECTORY]]]" >&2
     exit 1
 fi
 
@@ -16,11 +16,6 @@ if [[ -n "$version" && ! "$version" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
     echo "Version must use MAJOR.MINOR.PATCH format." >&2
     exit 1
 fi
-if [[ "$mod_name" == "--all" && $# -ne 1 ]]; then
-    echo "Usage: scripts/package.sh [MOD_NAME [VERSION [OUTPUT_DIRECTORY]]]" >&2
-    exit 1
-fi
-
 shopt -s nullglob
 projects=("$root"/*/*.csproj)
 if [[ ${#projects[@]} -eq 0 ]]; then

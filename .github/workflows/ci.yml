@@ -14,8 +14,19 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
       - uses: actions/setup-dotnet@v6
         with:
           dotnet-version: 8.0.x
-      - name: Run format checks and tests
-        run: bash scripts/check.sh
+      - name: Run checks
+        shell: bash
+        run: |
+          set -euo pipefail
+          if git ls-files --error-unmatch 'lib/*.dll' >/dev/null 2>&1; then
+            bash scripts/check.sh
+            bash scripts/package.sh --all "" "$RUNNER_TEMP/package"
+          else
+            echo "::warning::ONI libraries have not been added yet; running game-independent checks only."
+            bash scripts/check.sh --without-game
+          fi

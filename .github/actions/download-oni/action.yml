@@ -1,0 +1,58 @@
+name: Download latest ONI build
+description: Install the latest Windows ONI build and expose its Managed assemblies.
+inputs:
+  steam-username:
+    required: true
+    description: Steam account that owns ONI
+  steam-config-vdf:
+    required: true
+    description: SteamCMD login configuration
+runs:
+  using: composite
+  steps:
+    - name: Download ONI
+      env:
+        STEAM_USERNAME: ${{ inputs.steam-username }}
+        STEAM_CONFIG_VDF: ${{ inputs.steam-config-vdf }}
+        ONI_INSTALL_DIR: ${{ runner.temp }}/oxygen-not-included
+      shell: bash
+      run: |
+        set -euo pipefail
+        if [[ -z "$STEAM_USERNAME" || -z "$STEAM_CONFIG_VDF" ]]; then
+          echo "::error::Configure STEAM_USERNAME and STEAM_CONFIG_VDF to download ONI."
+          exit 1
+        fi
+
+        steamcmd_dir=$(mktemp -d "$RUNNER_TEMP/oni-steamcmd.XXXXXXXX")
+        trap 'rm -rf -- "$steamcmd_dir"' EXIT
+        mkdir -p "$steamcmd_dir/config" "$steamcmd_dir/home"
+        printf '%s' "$STEAM_CONFIG_VDF" > "$steamcmd_dir/config/config.vdf"
+        chmod 600 "$steamcmd_dir/config/config.vdf"
+        steam_username=$STEAM_USERNAME
+        unset STEAM_USERNAME STEAM_CONFIG_VDF
+
+        sudo apt-get update
+        sudo apt-get install --no-install-recommends -y lib32gcc-s1 lib32stdc++6
+        mkdir -p "$ONI_INSTALL_DIR"
+        curl -fsSL https://steamcdn-a.akamaihd.net/client/installer/steamcmd_linux.tar.gz \
+          -o "$steamcmd_dir/steamcmd_linux.tar.gz"
+        tar -xzf "$steamcmd_dir/steamcmd_linux.tar.gz" -C "$steamcmd_dir"
+
+        if ! (
+          cd "$steamcmd_dir"
+          export HOME="$steamcmd_dir/home"
+          ./steamcmd.sh +@sSteamCmdForcePlatformType windows \
+            +force_install_dir "$ONI_INSTALL_DIR" \
+            +login "$steam_username" +app_update 457140 validate +quit
+        ) > "$steamcmd_dir/steamcmd-output.log" 2>&1; then
+          echo "::error::SteamCMD failed to download ONI. Its output was suppressed to protect credentials."
+          exit 1
+        fi
+
+        managed_dir="$ONI_INSTALL_DIR/OxygenNotIncluded_Data/Managed"
+        if [[ ! -s "$managed_dir/Assembly-CSharp.dll" ||
+              ! -s "$managed_dir/Assembly-CSharp-firstpass.dll" ]]; then
+          echo "::error::SteamCMD did not install ONI Managed assemblies."
+          exit 1
+        fi
+        echo "ONI_MANAGED_DIR=$managed_dir" >> "$GITHUB_ENV"
