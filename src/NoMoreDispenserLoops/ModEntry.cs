@@ -14,7 +14,6 @@ namespace NoMoreDispenserLoops
             PUtil.InitLibrary(false);
             new POptions().RegisterOptions(this, typeof(ModOptions));
             (POptions.ReadSettings<ModOptions>() ?? new ModOptions()).OnOptionsChanged();
-            Strings.Add(NoMoreDispenserLoopsComponent.TitleKey, "Drop Tile Exclusion");
         }
     }
 }

@@ -16,6 +16,8 @@ public abstract class RegistryTest : IDisposable
         GlobalSettings.EnablePriorityExceptions = true;
         DispenserFetchAreaScopePatch.Active = false;
         DispenserFetchAreaScopePatch.Destination = null;
+        DispenserFetchAreaScopePatch.RootChore = null;
+        DispenserFetchAreaScopePatch.Destinations = null;
         Game.Instance = new Game();
     }
 
@@ -26,6 +28,8 @@ public abstract class RegistryTest : IDisposable
         GlobalSettings.EnablePriorityExceptions = true;
         DispenserFetchAreaScopePatch.Active = false;
         DispenserFetchAreaScopePatch.Destination = null;
+        DispenserFetchAreaScopePatch.RootChore = null;
+        DispenserFetchAreaScopePatch.Destinations = null;
         Game.Instance = new Game();
     }
 
@@ -47,7 +51,15 @@ internal sealed class FetchScenario
     internal FetchScenario()
     {
         DropTileRegistry.AddCell(10);
-        DropTileRegistry.DispenserStorageIds.Add(Dispenser.Id);
+        var go = new UnityEngine.GameObject
+        {
+            Storage = Dispenser,
+            Dispenser = new ObjectDispenser(),
+            Prioritizable = new Prioritizable()
+        };
+        var component = new NoMoreDispenserLoopsComponent { gameObject = go };
+        component.TestPrefabInit();
+        component.TestSpawn();
         Chore = new FetchChore { destination = Dispenser };
         var excluded = Candidate(DropPile, 1);
         Group.finalPickups.Add(excluded);

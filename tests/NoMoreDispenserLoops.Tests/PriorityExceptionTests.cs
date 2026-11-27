@@ -24,16 +24,15 @@ public sealed class PriorityExceptionTests : RegistryTest
     {
         var (source, _) = Dispenser(1, 20, 4, exclude: true);
         var (_, destination) = Dispenser(2, 40, 7);
-        ICheckboxControl checkbox = new HigherPriorityCheckbox(source);
         var pile = new Pickupable { cachedCell = 21 };
-        Assert.False(checkbox.GetCheckboxValue());
+        Assert.False(source.AllowHigherPriority);
 
-        checkbox.SetCheckboxValue(true);
+        source.SetAllowHigherPriority(true);
         Assert.True(source.GetCheckboxValue());
-        Assert.True(checkbox.GetCheckboxValue());
+        Assert.True(source.AllowHigherPriority);
         Assert.False(DispenserFetchFilter.IsExcluded(pile, destination.Storage));
 
-        checkbox.SetCheckboxValue(false);
+        source.SetAllowHigherPriority(false);
         Assert.True(source.GetCheckboxValue());
         Assert.True(DispenserFetchFilter.IsExcluded(pile, destination.Storage));
     }
@@ -176,15 +175,77 @@ public sealed class PriorityExceptionTests : RegistryTest
     }
 
     [Fact]
+    public void ExclusionUsesEachSourcesCurrentFilter()
+    {
+        var (first, firstObject) = Dispenser(1, 20, 4, exclude: true, allowHigher: true);
+        var (second, secondObject) = Dispenser(2, 20, 6, exclude: true);
+        var (_, destination) = Dispenser(3, 40, 7);
+        var pile = new Pickupable { cachedCell = 21 };
+        pile.KPrefabID.PrefabTag = 123;
+
+        Assert.False(DispenserFetchFilter.IsExcluded(pile, destination.Storage));
+        firstObject.Filterable.AcceptedTags.Add(123);
+        Assert.False(DispenserFetchFilter.IsExcluded(pile, destination.Storage));
+        secondObject.Filterable.AcceptedTags.Add(123);
+        Assert.True(DispenserFetchFilter.IsExcluded(pile, destination.Storage));
+        secondObject.Filterable.AcceptedTags.Remove(123);
+        Assert.False(DispenserFetchFilter.IsExcluded(pile, destination.Storage));
+        first.SetAllowHigherPriority(false);
+        Assert.True(DispenserFetchFilter.IsExcluded(pile, destination.Storage));
+        firstObject.Filterable.AcceptedTags.Remove(123);
+        Assert.False(DispenserFetchFilter.IsExcluded(pile, destination.Storage));
+
+        first.TestCleanUp();
+        second.TestCleanUp();
+    }
+
+    [Fact]
+    public void FilterChangesImmediatelyAffectSelectionCachedTargetsAndBatchPickups()
+    {
+        var (_, source) = Dispenser(1, 20, 4, exclude: true);
+        var (_, destination) = Dispenser(2, 40, 7);
+        var pile = new Pickupable { cachedCell = 21 };
+        pile.KPrefabID.PrefabTag = 123;
+        var alternative = new Pickupable { cachedCell = 22 };
+        var representative = FetchScenario.Candidate(pile, 1);
+        var group = new FetchManager.FetchablesByPrefabId();
+        group.finalPickups.Add(representative);
+        group.eligible.AddRange(new[] { representative, FetchScenario.Candidate(alternative, 2) });
+        group.costs.Add(21, 1);
+        group.costs.Add(22, 2);
+        var manager = new FetchManager();
+        manager.prefabIdToFetchables.Add(1, group);
+        manager.pickups.Add(representative);
+        var chore = new FetchChore { destination = destination.Storage };
+        var context = new Chore.Precondition.Context { chore = chore, consumerState = Duplicant(), data = pile };
+        var result = Util.IterationInstruction.Halt;
+
+        Assert.Same(pile, DispenserFetchFilter.FindTarget(manager, destination.Storage, chore));
+        DispenserFetchPreconditionPatch.Prefix(ref context);
+        Assert.Same(pile, context.data);
+        DispenserFetchAreaScopePatch.Prefix(chore, context, out var previous);
+        Assert.True(DispenserFetchAreaPickupPatch.Prefix(pile, ref result));
+        DispenserFetchAreaScopePatch.Finalizer(null, previous);
+
+        source.Filterable.AcceptedTags.Add(123);
+        Assert.Same(alternative, DispenserFetchFilter.FindTarget(manager, destination.Storage, chore));
+        DispenserFetchPreconditionPatch.Prefix(ref context);
+        Assert.Null(context.data);
+        DispenserFetchAreaScopePatch.Prefix(chore, context, out previous);
+        Assert.False(DispenserFetchAreaPickupPatch.Prefix(pile, ref result));
+        DispenserFetchAreaScopePatch.Finalizer(null, previous);
+    }
+
+    [Fact]
     public void CleanupAfterGameRegistryIsClearedDoesNotFail()
     {
-        var (source, _) = Dispenser(1, 20, 4, exclude: true, allowHigher: true);
+        var (source, sourceObject) = Dispenser(1, 20, 4, exclude: true, allowHigher: true);
 
         DropTileRegistry.Clear();
         source.TestCleanUp();
 
         Assert.False(DropTileRegistry.HasPriorityExceptions);
-        Assert.Empty(DropTileRegistry.DispenserStorageIds);
+        Assert.False(DropTileRegistry.IsDispenser(sourceObject.Storage));
     }
 
     [Fact]
@@ -313,6 +374,37 @@ public sealed class PriorityExceptionTests : RegistryTest
         DispenserFetchAreaScopePatch.Prefix(lowChore, context, out previous);
         Assert.False(DispenserFetchAreaPickupPatch.Prefix(pile, ref result));
         Assert.Equal(Util.IterationInstruction.Continue, result);
+        DispenserFetchAreaScopePatch.Finalizer(null, previous);
+    }
+
+    [Fact]
+    public void MixedPrioritiesBatchOnlyWhenAllDestinationsCanTakeEachPickup()
+    {
+        Dispenser(1, 20, 4, exclude: true, allowHigher: true);
+        var (_, high) = Dispenser(2, 40, 7);
+        var (_, low) = Dispenser(3, 60, 3);
+        var root = new FetchChore { destination = high.Storage };
+        var other = new FetchChore { destination = low.Storage };
+        var safe = new Pickupable { cachedCell = 22 };
+        var protectedPile = new Pickupable { cachedCell = 21 };
+        var context = new Chore.Precondition.Context { chore = root, consumerState = Duplicant(), data = safe };
+        var contexts = new List<Chore.Precondition.Context> { new() { chore = root }, new() { chore = other } };
+
+        DispenserFetchAreaScopePatch.Prefix(root, context, out var previous);
+        SeparateDispenserDeliveriesPatch.Postfix(root, context, contexts);
+        Assert.Equal(2, contexts.Count);
+        var result = Util.IterationInstruction.Halt;
+        Assert.True(DispenserFetchAreaPickupPatch.Prefix(protectedPile, ref result));
+        DispenserFetchAreaPickupPatch.FilterDeliveries(protectedPile);
+        Assert.Same(root, Assert.Single(contexts).chore);
+        DispenserFetchAreaScopePatch.Finalizer(null, previous);
+
+        context.data = protectedPile;
+        contexts.Add(new Chore.Precondition.Context { chore = other });
+        DispenserFetchAreaScopePatch.Prefix(root, context, out previous);
+        SeparateDispenserDeliveriesPatch.Postfix(root, context, contexts);
+        Assert.Same(root, Assert.Single(contexts).chore);
+        Assert.True(DispenserFetchAreaPickupPatch.Prefix(protectedPile, ref result));
         DispenserFetchAreaScopePatch.Finalizer(null, previous);
     }
 

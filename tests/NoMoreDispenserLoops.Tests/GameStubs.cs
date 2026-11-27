@@ -1,7 +1,32 @@
+global using Tag = System.Int32;
 using System.Reflection;
+using System.Reflection.Emit;
 
 namespace HarmonyLib
 {
+    internal sealed class CodeInstruction
+    {
+        internal OpCode opcode;
+        internal object operand;
+        internal List<Label> labels = new();
+        internal List<object> blocks = new();
+        internal CodeInstruction(OpCode opcode, object operand = null)
+        {
+            this.opcode = opcode;
+            this.operand = operand;
+        }
+    }
+
+    internal static class CodeInstructionExtensions
+    {
+        internal static CodeInstruction MoveLabelsTo(this CodeInstruction instruction, CodeInstruction other)
+        {
+            other.labels.AddRange(instruction.labels);
+            instruction.labels.Clear();
+            return instruction;
+        }
+    }
+
     [AttributeUsage(AttributeTargets.Class | AttributeTargets.Method, AllowMultiple = true)]
     internal sealed class HarmonyPatch : Attribute
     {
@@ -53,6 +78,7 @@ namespace UnityEngine
         public ObjectDispenser Dispenser;
         public Rotatable Rotatable;
         public Prioritizable Prioritizable;
+        public TreeFilterable Filterable = new();
         public T AddOrGet<T>() where T : new() => new T();
         public T AddComponent<T>() where T : Component, new() => new T { gameObject = this };
     }
@@ -90,6 +116,8 @@ public class KMonoBehaviour : UnityEngine.Component
             return gameObject.Rotatable as T;
         if (typeof(T) == typeof(Prioritizable))
             return gameObject.Prioritizable as T;
+        if (typeof(T) == typeof(TreeFilterable))
+            return gameObject.Filterable as T;
         return null;
     }
     protected void Subscribe(int hash, Action<object> callback) => callbacks.Add(hash, callback);
@@ -104,6 +132,12 @@ public class KMonoBehaviour : UnityEngine.Component
 public enum GameHashes { Rotated = -1643076535 }
 public struct CellOffset { public int Value; }
 public sealed class ObjectDispenser { public CellOffset dropOffset; }
+public sealed class TreeFilterable
+{
+    public HashSet<int> AcceptedTags = new() { 0 };
+    public bool ContainsTag(int tag) => AcceptedTags.Contains(tag);
+}
+public sealed class KPrefabID { public int PrefabTag; }
 public struct PrioritySetting : IEquatable<PrioritySetting>
 {
     public int Class;
@@ -236,6 +270,7 @@ public sealed class Pickupable
     public int cachedCell;
     public Storage storage;
     public bool Allowed = true;
+    public KPrefabID KPrefabID = new();
 }
 public sealed class ChoreConsumerState
 {
@@ -259,6 +294,11 @@ public class Chore
 public sealed class FetchChore : Chore
 {
     public Storage destination;
+    public object overrideTarget;
+    public object driver;
+    public int tagsHash;
+    public int requiredTag;
+    public int forbidHash;
     public static readonly Precondition IsFetchTargetAvailable = new Precondition { fn = Check };
     private static bool Check(ref Precondition.Context context, object data) => true;
     public Pickupable FindFetchTarget(ChoreConsumerState consumer_state) => null;

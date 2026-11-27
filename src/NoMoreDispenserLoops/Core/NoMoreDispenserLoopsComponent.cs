@@ -6,8 +6,6 @@ using HarmonyLib;
 [SerializationConfig(MemberSerialization.OptIn)]
 public sealed class NoMoreDispenserLoopsComponent : KMonoBehaviour, ISaveLoadable
 {
-    internal const string TitleKey = "STRINGS.UI.UISIDESCREENS.NOMOREDISPENSERLOOPS.TITLE";
-
     [Serialize]
     private bool excludeDropTile = false;
 
@@ -20,6 +18,7 @@ public sealed class NoMoreDispenserLoopsComponent : KMonoBehaviour, ISaveLoadabl
     private int storageId;
     private bool spawned;
     private Prioritizable prioritizable;
+    private TreeFilterable filterable;
     private HandleVector<int>.Handle terrainChanges;
     private static readonly Action<object, object> TerrainChanged = OnTerrainChanged;
 
@@ -28,9 +27,10 @@ public sealed class NoMoreDispenserLoopsComponent : KMonoBehaviour, ISaveLoadabl
     internal PrioritySetting Priority { get { return prioritizable.GetMasterPriority(); } }
     internal int RegisteredCell { get { return registeredCell; } }
 
-    public string CheckboxTitleKey { get { return TitleKey; } }
-    public string CheckboxLabel { get { return "Exclude Drop Tile"; } }
-    public string CheckboxTooltip { get { return "Prevent duplicants from picking up items on this dispenser's drop tile to refill Automatic Dispensers."; } }
+    internal bool FilterContainsPrefabTag(Tag prefabTag)
+    {
+        return filterable.ContainsTag(prefabTag);
+    }
 
     public bool GetCheckboxValue()
     {
@@ -73,6 +73,9 @@ public sealed class NoMoreDispenserLoopsComponent : KMonoBehaviour, ISaveLoadabl
         prioritizable = GetComponent<Prioritizable>();
         if (prioritizable == null)
             throw new System.InvalidOperationException("No More Dispenser Loops: dispenser priority is missing.");
+        filterable = GetComponent<TreeFilterable>();
+        if (filterable == null)
+            throw new System.InvalidOperationException("No More Dispenser Loops: dispenser filter is missing.");
         storageId = storage.GetInstanceID();
         DropTileRegistry.RegisterDispenser(storageId, this);
         spawned = true;

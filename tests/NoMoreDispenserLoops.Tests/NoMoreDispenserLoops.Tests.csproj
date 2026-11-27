@@ -18,7 +18,6 @@
     <Compile Include="../../src/NoMoreDispenserLoops/Core/DropTileRegistry.cs" Link="Production/Core/DropTileRegistry.cs" />
     <Compile Include="../../src/NoMoreDispenserLoops/ModOptions.cs" Link="Production/ModOptions.cs" />
     <Compile Include="../../src/NoMoreDispenserLoops/Core/DispenserFetchFilter.cs" Link="Production/Core/DispenserFetchFilter.cs" />
-    <Compile Include="../../src/NoMoreDispenserLoops/UI/HigherPriorityCheckbox.cs" Link="Production/UI/HigherPriorityCheckbox.cs" />
     <Compile Include="../../src/NoMoreDispenserLoops/UI/DropTileHighlight.cs" Link="Production/UI/DropTileHighlight.cs" />
     <Compile Include="../../src/NoMoreDispenserLoops/Core/NoMoreDispenserLoopsComponent.cs" Link="Production/Core/NoMoreDispenserLoopsComponent.cs" />
   </ItemGroup>

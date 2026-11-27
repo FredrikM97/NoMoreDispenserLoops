@@ -64,7 +64,7 @@ public sealed class FetchSelectionTests : RegistryTest
         Assert.Same(priorityThree, DispenserFetchFilter.FindTarget(manager, scenario.Dispenser, scenario.Chore));
         priorityThree.Allowed = false;
         Assert.Same(priorityOne, DispenserFetchFilter.FindTarget(manager, scenario.Dispenser, scenario.Chore));
-        manager.pickups[0] = FetchScenario.Candidate(scenario.Other, 5, tag: 5, priority: 2);
+        manager.pickups[manager.pickups.Count - 1] = FetchScenario.Candidate(scenario.Other, 5, tag: 5, priority: 2);
         Assert.Same(scenario.Other, DispenserFetchFilter.FindTarget(manager, scenario.Dispenser, scenario.Chore));
     }
 
@@ -107,6 +107,10 @@ public sealed class FetchSelectionTests : RegistryTest
         group.costs.Add(16, 5);
         group.costs.Add(17, 1);
         manager.prefabIdToFetchables.Add(5, group);
+        manager.pickups.Add(group.finalPickups[0]);
+        manager.pickups.Add(group.finalPickups[1]);
+        manager.pickups.Add(group.finalPickups[3]);
+        manager.pickups.Add(group.finalPickups[4]);
         manager.pickups.Add(retained);
         return (manager, priorityThree, priorityOne);
     }

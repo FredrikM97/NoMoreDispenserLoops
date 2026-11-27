@@ -6,7 +6,6 @@ using HarmonyLib;
 public static class DropTileRegistry
 {
     public static byte[] DropCellRefCount;
-    public static readonly HashSet<int> DispenserStorageIds = new HashSet<int>();
     private static readonly Dictionary<int, int> OverflowCounts = new Dictionary<int, int>();
     private static readonly Dictionary<int, List<NoMoreDispenserLoopsComponent>> CellOwners =
         new Dictionary<int, List<NoMoreDispenserLoopsComponent>>();
@@ -31,7 +30,6 @@ public static class DropTileRegistry
     public static void Initialize(int cellCount)
     {
         DropCellRefCount = new byte[cellCount];
-        DispenserStorageIds.Clear();
         OverflowCounts.Clear();
         CellOwners.Clear();
         Dispensers.Clear();
@@ -42,7 +40,6 @@ public static class DropTileRegistry
     public static void Clear()
     {
         DropCellRefCount = null;
-        DispenserStorageIds.Clear();
         OverflowCounts.Clear();
         CellOwners.Clear();
         Dispensers.Clear();
@@ -100,14 +97,17 @@ public static class DropTileRegistry
 
     internal static void RegisterDispenser(int storageId, NoMoreDispenserLoopsComponent dispenser)
     {
-        DispenserStorageIds.Add(storageId);
         Dispensers.Add(storageId, dispenser);
     }
 
     internal static void UnregisterDispenser(int storageId)
     {
-        DispenserStorageIds.Remove(storageId);
         Dispensers.Remove(storageId);
+    }
+
+    internal static bool IsDispenser(Storage storage)
+    {
+        return storage != null && Dispensers.ContainsKey(storage.GetInstanceID());
     }
 
     internal static void AddCell(int cell, NoMoreDispenserLoopsComponent owner)
@@ -165,12 +165,11 @@ public static class DropTileRegistry
         return false;
     }
 
-    internal static bool IsCellExcludedFor(int cell, Storage destination)
+    internal static bool IsCellExcludedFor(Pickupable pickup, Storage destination)
     {
+        int cell = pickup.cachedCell;
         if (!IsCellExcluded(cell))
             return false;
-        if (!HasPriorityExceptions)
-            return true;
 
         List<NoMoreDispenserLoopsComponent> owners;
         if (!CellOwners.TryGetValue(cell, out owners))
@@ -186,16 +185,24 @@ public static class DropTileRegistry
         else if (owners.Count != count)
             return true;
 
-        if (destination == null)
-            return true;
-        int destinationId = destination.GetInstanceID();
-        PrioritySetting destinationPriority;
-        if (!TryGetPriority(destinationId, out destinationPriority))
-            return true;
-
+        int destinationId = 0;
+        PrioritySetting destinationPriority = default(PrioritySetting);
+        bool priorityChecked = false;
+        Tag prefabTag = pickup.KPrefabID.PrefabTag;
         foreach (NoMoreDispenserLoopsComponent owner in owners)
         {
-            if (!owner.AllowHigherPriority || destinationId == owner.StorageId ||
+            if (!owner.FilterContainsPrefabTag(prefabTag))
+                continue;
+            if (!HasPriorityExceptions || !owner.AllowHigherPriority || destination == null)
+                return true;
+            if (!priorityChecked)
+            {
+                destinationId = destination.GetInstanceID();
+                if (!TryGetPriority(destinationId, out destinationPriority))
+                    return true;
+                priorityChecked = true;
+            }
+            if (destinationId == owner.StorageId ||
                 destinationPriority <= owner.Priority)
                 return true;
         }

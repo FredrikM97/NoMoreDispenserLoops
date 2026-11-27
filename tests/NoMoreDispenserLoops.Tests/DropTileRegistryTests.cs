@@ -33,13 +33,14 @@ public sealed class DropTileRegistryTests : RegistryTest
     public void ClearResetsCellsAndStorageIds()
     {
         DropTileRegistry.AddCell(10);
-        DropTileRegistry.DispenserStorageIds.Add(1);
+        var storage = new Storage { Id = 1 };
+        DropTileRegistry.RegisterDispenser(storage.Id, new NoMoreDispenserLoopsComponent());
 
         DropTileRegistry.Clear();
         DropTileRegistry.Initialize(Grid.CellCount);
 
         Assert.False(DropTileRegistry.HasExcludedCells);
         Assert.False(DropTileRegistry.IsCellExcluded(10));
-        Assert.Empty(DropTileRegistry.DispenserStorageIds);
+        Assert.False(DropTileRegistry.IsDispenser(storage));
     }
 }

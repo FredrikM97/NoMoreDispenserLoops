@@ -23,7 +23,7 @@ public sealed class DispenserComponentTests : RegistryTest
         component.TestSpawn();
         Assert.True(component.GetCheckboxValue());
         Assert.True(DropTileRegistry.IsCellExcluded(21));
-        Assert.Contains(42, DropTileRegistry.DispenserStorageIds);
+        Assert.True(DropTileRegistry.IsDispenser(go.Storage));
 
         go.Rotatable.Flipped = true;
         component.Trigger((int)GameHashes.Rotated);
@@ -32,45 +32,45 @@ public sealed class DispenserComponentTests : RegistryTest
 
         component.SetCheckboxValue(false);
         Assert.False(DropTileRegistry.HasExcludedCells);
-        Assert.Contains(42, DropTileRegistry.DispenserStorageIds);
+        Assert.True(DropTileRegistry.IsDispenser(go.Storage));
 
         component.SetCheckboxValue(true);
         Assert.True(DropTileRegistry.IsCellExcluded(19));
 
         component.TestCleanUp();
         Assert.False(DropTileRegistry.HasExcludedCells);
-        Assert.DoesNotContain(42, DropTileRegistry.DispenserStorageIds);
+        Assert.False(DropTileRegistry.IsDispenser(go.Storage));
     }
 
     [Fact]
     public void GameSpawnKeepsPreviouslyRegisteredDispensers()
     {
-        var (component, _) = CreateDispenser();
+        var (component, go) = CreateDispenser();
         component.SetCheckboxValue(true);
         component.TestSpawn();
 
         GameSpawnPatch.Prefix();
 
         Assert.True(DropTileRegistry.IsCellExcluded(21));
-        Assert.Contains(42, DropTileRegistry.DispenserStorageIds);
+        Assert.True(DropTileRegistry.IsDispenser(go.Storage));
     }
 
     [Fact]
     public void NewDispenserDefaultsToDisabledAndDoesNotRegisterDropCell()
     {
-        var (component, _) = CreateDispenser();
+        var (component, go) = CreateDispenser();
 
         component.TestSpawn();
 
         Assert.False(component.GetCheckboxValue());
         Assert.False(DropTileRegistry.HasExcludedCells);
-        Assert.Contains(42, DropTileRegistry.DispenserStorageIds);
+        Assert.True(DropTileRegistry.IsDispenser(go.Storage));
     }
 
     [Fact]
     public void DisablingOneDispenserKeepsAnotherDispensersOverlappingCellExcluded()
     {
-        var (first, _) = CreateDispenser();
+        var (first, firstObject) = CreateDispenser();
         var (second, secondObject) = CreateDispenser();
         secondObject.Storage.Id = 43;
         first.SetCheckboxValue(true);
@@ -83,7 +83,7 @@ public sealed class DispenserComponentTests : RegistryTest
 
         second.TestCleanUp();
         Assert.False(DropTileRegistry.IsCellExcluded(21));
-        Assert.Contains(42, DropTileRegistry.DispenserStorageIds);
+        Assert.True(DropTileRegistry.IsDispenser(firstObject.Storage));
     }
 
     [Fact]

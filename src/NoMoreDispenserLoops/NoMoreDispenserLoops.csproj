@@ -23,6 +23,8 @@
     <Reference Include="0Harmony" HintPath="$(GameManagedDir)/0Harmony.dll" Private="false" Condition="Exists('$(GameManagedDir)/0Harmony.dll')" />
     <Reference Include="UnityEngine" HintPath="$(GameManagedDir)/UnityEngine.dll" Private="false" Condition="Exists('$(GameManagedDir)/UnityEngine.dll')" />
     <Reference Include="UnityEngine.CoreModule" HintPath="$(GameManagedDir)/UnityEngine.CoreModule.dll" Private="false" Condition="Exists('$(GameManagedDir)/UnityEngine.CoreModule.dll')" />
+    <Reference Include="UnityEngine.TextRenderingModule" HintPath="$(GameManagedDir)/UnityEngine.TextRenderingModule.dll" Private="false" Condition="Exists('$(GameManagedDir)/UnityEngine.TextRenderingModule.dll')" />
+    <Reference Include="Unity.TextMeshPro" HintPath="$(GameManagedDir)/Unity.TextMeshPro.dll" Private="false" Condition="Exists('$(GameManagedDir)/Unity.TextMeshPro.dll')" />
     <Reference Include="UnityEngine.UI" HintPath="$(GameManagedDir)/UnityEngine.UI.dll" Private="false" Condition="Exists('$(GameManagedDir)/UnityEngine.UI.dll')" />
     <Reference Include="Newtonsoft.Json" HintPath="$(GameManagedDir)/Newtonsoft.Json.dll" Private="false" Condition="Exists('$(GameManagedDir)/Newtonsoft.Json.dll')" />
   </ItemGroup>
@@ -33,6 +35,8 @@
     <Error Condition="!Exists('$(GameManagedDir)/0Harmony.dll')" Text="0Harmony.dll not found in $(GameManagedDir)." />
     <Error Condition="!Exists('$(GameManagedDir)/UnityEngine.dll')" Text="UnityEngine.dll not found in $(GameManagedDir)." />
     <Error Condition="!Exists('$(GameManagedDir)/UnityEngine.CoreModule.dll')" Text="UnityEngine.CoreModule.dll not found in $(GameManagedDir)." />
+    <Error Condition="!Exists('$(GameManagedDir)/UnityEngine.TextRenderingModule.dll')" Text="UnityEngine.TextRenderingModule.dll not found in $(GameManagedDir)." />
+    <Error Condition="!Exists('$(GameManagedDir)/Unity.TextMeshPro.dll')" Text="Unity.TextMeshPro.dll not found in $(GameManagedDir)." />
     <Error Condition="!Exists('$(GameManagedDir)/UnityEngine.UI.dll')" Text="UnityEngine.UI.dll not found in $(GameManagedDir)." />
     <Error Condition="!Exists('$(GameManagedDir)/Newtonsoft.Json.dll')" Text="Newtonsoft.Json.dll not found in $(GameManagedDir)." />
   </Target>
