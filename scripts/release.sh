@@ -63,12 +63,6 @@ if [[ "$commit" != "$remote_commit" ]]; then
     echo "Local main does not match GitHub main. Commit and push your changes first." >&2
     exit 1
 fi
-draft=$(gh release view unreleased --repo "$repository" --json isDraft --jq .isDraft)
-if [[ "$draft" != true ]]; then
-    echo "The unreleased release must be a draft." >&2
-    exit 1
-fi
-
 git fetch --tags origin
 last_tag=$(git tag --list 'v*' | awk '/^v[0-9]+\.[0-9]+\.[0-9]+$/' | sort -V | tail -n 1)
 base=${last_tag#v}
@@ -112,6 +106,24 @@ if [[ "$commit" != "$remote_commit" || -n "$(git status --porcelain)" ]]; then
     echo "Main or the local worktree changed during the build; release aborted." >&2
     exit 1
 fi
+draft=$(gh release list --repo "$repository" --limit 1000 --json tagName,isDraft \
+    --jq '[.[] | select(.tagName == "unreleased") | if .isDraft then "draft" else "published" end] | first // "missing"')
+case "$draft" in
+    draft) ;;
+    missing)
+        echo "Creating the missing unreleased draft."
+        gh release create unreleased --repo "$repository" --title Unreleased \
+            --notes-file "$notes" --target "$commit" --draft
+        ;;
+    published)
+        echo "The unreleased release already exists and is not a draft." >&2
+        exit 1
+        ;;
+    *)
+        echo "Unexpected unreleased release status: $draft" >&2
+        exit 1
+        ;;
+esac
 gh release upload unreleased "$root/dist/NoMoreDispenserLoops-$version.zip" --repo "$repository" --clobber
 gh release edit unreleased --repo "$repository" --tag "$tag" --title "$tag" \
     --notes-file "$notes" --target "$commit" --draft=false --latest

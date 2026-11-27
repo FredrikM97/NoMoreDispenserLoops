@@ -67,24 +67,3 @@ matching the pushed GitHub branch, run:
 ```bash
 bash scripts/release.sh
 ```
-
-The script starts GitHub CLI login if needed, then asks for a `patch`, `minor`,
-or `major` version bump and detects the repository from the `origin` remote.
-If no credential store is available, GitHub CLI may store its token in
-plaintext inside the container. The script generates release notes in `dist/`,
-runs tests, builds the versioned ZIP locally, and publishes the draft. Game
-DLLs are not included in the release ZIP.
-
-Alternatively, upload a locally built `dist/NoMoreDispenserLoops.zip` to the
-draft and run the **Release** workflow on `main` with `publish`. The
-GitHub-hosted runner cannot verify that the uploaded binary matches the commit.
-
-### SSH in the Dev Container
-
-VS Code forwards a running host SSH agent into the container. Start the agent
-and add your GitHub key on the host before opening the container, then use
-`ssh-add -l` in the container to check that the key is available. The container
-also maps the `github.com-private` SSH alias to `github.com`; the private key
-stays in your host agent. Verify the connection with
-`ssh -T git@github.com-private` (GitHub returns exit code 1 on successful
-authentication). Only forward your agent to containers you trust.

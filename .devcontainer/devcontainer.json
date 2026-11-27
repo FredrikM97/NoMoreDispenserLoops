@@ -4,12 +4,9 @@
   "features": {
     "ghcr.io/devcontainers/features/github-cli:1": {}
   },
-  // Optional: uncomment and replace the source paths with existing host paths.
-  // On Codespaces, upload the DLLs to lib/ instead of mounting a local path.
-  // "mounts": [
-  //   "source=/absolute/host/path/to/Managed,target=${containerWorkspaceFolder}/lib,type=bind",
-  //   "source=/absolute/host/path/to/mods/Dev,target=${containerWorkspaceFolder}/dist,type=bind"
-  // ],
+  "mounts": [
+    "type=bind,source=${localEnv:HOME}/.ssh,target=/root/.ssh,readonly"
+  ],
   "customizations": {
     "vscode": {
       "settings": {

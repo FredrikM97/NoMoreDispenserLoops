@@ -8,7 +8,4 @@ RUN apt-get update \
     && rm -rf /var/lib/apt/lists/* \
     && dotnet tool install --global ilspycmd --version 9.1.0.7988
 
-RUN printf 'Host github.com-private\n    HostName github.com\n' \
-    > /etc/ssh/ssh_config.d/github.com-private.conf
-
 WORKDIR /workspaces/NoMoreDispenserLoops
