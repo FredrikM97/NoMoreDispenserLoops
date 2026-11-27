@@ -31,6 +31,20 @@ if [[ "$(git branch --show-current)" != main || -n "$(git status --porcelain)" ]
     exit 1
 fi
 
+if ! gh auth status --active --hostname github.com; then
+    if [[ -n "${GH_TOKEN:-}" || -n "${GITHUB_TOKEN:-}" ]]; then
+        echo "GitHub token authentication failed. Check GH_TOKEN or GITHUB_TOKEN." >&2
+        exit 1
+    fi
+    if [[ ! -t 0 || ! -t 1 ]]; then
+        echo "GitHub CLI authentication is required. Run 'gh auth login --hostname github.com --web' interactively." >&2
+        exit 1
+    fi
+    echo "GitHub CLI authentication is required; starting login." >&2
+    gh auth login --hostname github.com --web
+    gh auth status --active --hostname github.com
+fi
+
 while true; do
     printf 'Version bump (patch, minor, or major): ' >&2
     if ! IFS= read -r bump; then

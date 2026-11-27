@@ -61,15 +61,17 @@ start a Dependabot scan.
 
 To publish, first check out the `main` commit to be released and build locally
 with the game DLLs in `lib/` or `ONI_MANAGED_DIR`. Install the GitHub CLI and
-authenticate with `gh auth login`, and make sure the **Unreleased** draft
-exists. With a clean `main` checkout matching the pushed GitHub branch, run:
+make sure the **Unreleased** draft exists. With a clean `main` checkout
+matching the pushed GitHub branch, run:
 
 ```bash
 bash scripts/release.sh
 ```
 
-The script asks for a `patch`, `minor`, or `major` version bump and detects the
-repository from the `origin` remote. It generates release notes in `dist/`,
+The script starts GitHub CLI login if needed, then asks for a `patch`, `minor`,
+or `major` version bump and detects the repository from the `origin` remote.
+If no credential store is available, GitHub CLI may store its token in
+plaintext inside the container. The script generates release notes in `dist/`,
 runs tests, builds the versioned ZIP locally, and publishes the draft. Game
 DLLs are not included in the release ZIP.
 
