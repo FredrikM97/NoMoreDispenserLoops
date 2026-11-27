@@ -1,0 +1,13 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <AssemblyName>NoMoreDispenserLoops</AssemblyName>
+    <RootNamespace>NoMoreDispenserLoops</RootNamespace>
+    <IsOniMod>true</IsOniMod>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="PLib" Version="4.26.0" PrivateAssets="all" />
+    <PackageReference Include="Lib.Harmony.Ref" Version="2.4.3" ExcludeAssets="compile;runtime" PrivateAssets="all" />
+    <PackageReference Include="ILRepack.Lib.MSBuild.Task" Version="2.0.48" PrivateAssets="all" />
+  </ItemGroup>
+</Project>

@@ -1,4 +1,0 @@
-[submodule "references/ONIMods"]
-	path = references/ONIMods
-	url = https://github.com/peterhaneve/ONIMods.git
-	branch = main

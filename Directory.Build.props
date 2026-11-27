@@ -1,0 +1,16 @@
+<Project>
+  <PropertyGroup>
+    <TargetFramework Condition="'$(TargetFramework)' == ''">netstandard2.1</TargetFramework>
+    <LangVersion Condition="'$(LangVersion)' == ''">latest</LangVersion>
+    <AllowUnsafeBlocks Condition="'$(AllowUnsafeBlocks)' == ''">true</AllowUnsafeBlocks>
+    <Nullable Condition="'$(Nullable)' == ''">disable</Nullable>
+    <ImplicitUsings Condition="'$(ImplicitUsings)' == ''">disable</ImplicitUsings>
+    <GenerateAssemblyInfo>true</GenerateAssemblyInfo>
+    <CopyLocalLockFileAssemblies>true</CopyLocalLockFileAssemblies>
+
+    <GameManagedDir Condition="'$(GameManagedDir)' == '' and '$(ONI_MANAGED_DIR)' != ''">$(ONI_MANAGED_DIR)</GameManagedDir>
+    <GameManagedDir Condition="'$(GameManagedDir)' == ''">$(MSBuildThisFileDirectory)lib</GameManagedDir>
+    <ModOutputDir Condition="'$(ModOutputDir)' == '' and '$(ONI_MODS_DIR)' != ''">$(ONI_MODS_DIR)\$(MSBuildProjectName)</ModOutputDir>
+    <ModOutputDir Condition="'$(ModOutputDir)' == ''">$(MSBuildThisFileDirectory)dist/$(MSBuildProjectName)</ModOutputDir>
+  </PropertyGroup>
+</Project>

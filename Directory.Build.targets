@@ -1,0 +1,48 @@
+<Project>
+  <ItemGroup Condition="'$(IsOniMod)' == 'true'">
+    <Reference Include="Assembly-CSharp" HintPath="$(GameManagedDir)/Assembly-CSharp.dll" Private="false" />
+    <Reference Include="Assembly-CSharp-firstpass" HintPath="$(GameManagedDir)/Assembly-CSharp-firstpass.dll" Private="false" />
+    <Reference Include="0Harmony" HintPath="$(GameManagedDir)/0Harmony.dll" Private="false" />
+    <Reference Include="UnityEngine" HintPath="$(GameManagedDir)/UnityEngine.dll" Private="false" />
+    <Reference Include="UnityEngine.CoreModule" HintPath="$(GameManagedDir)/UnityEngine.CoreModule.dll" Private="false" />
+    <Reference Include="UnityEngine.TextRenderingModule" HintPath="$(GameManagedDir)/UnityEngine.TextRenderingModule.dll" Private="false" />
+    <Reference Include="Unity.TextMeshPro" HintPath="$(GameManagedDir)/Unity.TextMeshPro.dll" Private="false" />
+    <Reference Include="UnityEngine.UI" HintPath="$(GameManagedDir)/UnityEngine.UI.dll" Private="false" />
+    <Reference Include="Newtonsoft.Json" HintPath="$(GameManagedDir)/Newtonsoft.Json.dll" Private="false" />
+  </ItemGroup>
+
+  <Target Name="ValidateGameAssemblies" BeforeTargets="ResolveReferences" Condition="'$(IsOniMod)' == 'true'">
+    <Error Condition="!Exists('$(GameManagedDir)/Assembly-CSharp.dll')" Text="ONI Managed assemblies not found. Set ONI_MANAGED_DIR to the game's Managed directory or place the assemblies in the repository's lib directory." />
+    <Error Condition="!Exists('$(GameManagedDir)/Assembly-CSharp-firstpass.dll')" Text="Assembly-CSharp-firstpass.dll not found in $(GameManagedDir)." />
+    <Error Condition="!Exists('$(GameManagedDir)/0Harmony.dll')" Text="0Harmony.dll not found in $(GameManagedDir)." />
+    <Error Condition="!Exists('$(GameManagedDir)/UnityEngine.dll')" Text="UnityEngine.dll not found in $(GameManagedDir)." />
+    <Error Condition="!Exists('$(GameManagedDir)/UnityEngine.CoreModule.dll')" Text="UnityEngine.CoreModule.dll not found in $(GameManagedDir)." />
+    <Error Condition="!Exists('$(GameManagedDir)/UnityEngine.TextRenderingModule.dll')" Text="UnityEngine.TextRenderingModule.dll not found in $(GameManagedDir)." />
+    <Error Condition="!Exists('$(GameManagedDir)/Unity.TextMeshPro.dll')" Text="Unity.TextMeshPro.dll not found in $(GameManagedDir)." />
+    <Error Condition="!Exists('$(GameManagedDir)/UnityEngine.UI.dll')" Text="UnityEngine.UI.dll not found in $(GameManagedDir)." />
+    <Error Condition="!Exists('$(GameManagedDir)/Newtonsoft.Json.dll')" Text="Newtonsoft.Json.dll not found in $(GameManagedDir)." />
+  </Target>
+
+  <Target Name="WriteOniBuildInfo" Condition="'$(IsOniMod)' == 'true'">
+    <MakeDir Directories="$(ModOutputDir)" />
+    <Exec Command="dotnet run --project &quot;$(MSBuildThisFileDirectory)scripts/OniBuildInfo/OniBuildInfo.csproj&quot; -- &quot;$(GameManagedDir)/Assembly-CSharp.dll&quot; &quot;$(ModOutputDir)/oni-build.txt&quot;" />
+  </Target>
+
+  <Target Name="CopyModToOutput" AfterTargets="MergePLib" DependsOnTargets="WriteOniBuildInfo" Condition="'$(IsOniMod)' == 'true'">
+    <Copy SourceFiles="$(TargetPath)" DestinationFolder="$(ModOutputDir)" />
+    <Copy SourceFiles="$(MSBuildProjectDirectory)/mod.yaml;$(MSBuildProjectDirectory)/mod_info.yaml" DestinationFolder="$(ModOutputDir)" />
+    <Copy SourceFiles="$(MSBuildProjectDirectory)/THIRD-PARTY-NOTICES.txt" DestinationFolder="$(ModOutputDir)" Condition="Exists('$(MSBuildProjectDirectory)/THIRD-PARTY-NOTICES.txt')" />
+    <ItemGroup>
+      <ModAnimation Include="$(MSBuildProjectDirectory)/anim/**/*" />
+      <ModTranslation Include="$(MSBuildProjectDirectory)/translations/**/*" />
+      <ModWorldGen Include="$(MSBuildProjectDirectory)/worldgen/**/*" />
+      <ModTemplate Include="$(MSBuildProjectDirectory)/templates/**/*" />
+      <ModPreview Include="$(MSBuildProjectDirectory)/Preview.png" Condition="Exists('$(MSBuildProjectDirectory)/Preview.png')" />
+    </ItemGroup>
+    <Copy SourceFiles="@(ModAnimation)" DestinationFiles="@(ModAnimation->'$(ModOutputDir)/anim/%(RecursiveDir)%(Filename)%(Extension)')" Condition="'@(ModAnimation)' != ''" />
+    <Copy SourceFiles="@(ModTranslation)" DestinationFiles="@(ModTranslation->'$(ModOutputDir)/translations/%(RecursiveDir)%(Filename)%(Extension)')" Condition="'@(ModTranslation)' != ''" />
+    <Copy SourceFiles="@(ModWorldGen)" DestinationFiles="@(ModWorldGen->'$(ModOutputDir)/worldgen/%(RecursiveDir)%(Filename)%(Extension)')" Condition="'@(ModWorldGen)' != ''" />
+    <Copy SourceFiles="@(ModTemplate)" DestinationFiles="@(ModTemplate->'$(ModOutputDir)/templates/%(RecursiveDir)%(Filename)%(Extension)')" Condition="'@(ModTemplate)' != ''" />
+    <Copy SourceFiles="@(ModPreview)" DestinationFolder="$(ModOutputDir)" Condition="'@(ModPreview)' != ''" />
+  </Target>
+</Project>

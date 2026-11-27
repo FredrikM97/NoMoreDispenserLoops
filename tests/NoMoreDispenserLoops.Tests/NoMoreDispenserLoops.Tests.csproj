@@ -15,10 +15,10 @@
     <PackageReference Include="xunit.runner.visualstudio" Version="4.0.1" PrivateAssets="all" />
   </ItemGroup>
   <ItemGroup>
-    <Compile Include="../../src/NoMoreDispenserLoops/Core/DropTileRegistry.cs" Link="Production/Core/DropTileRegistry.cs" />
-    <Compile Include="../../src/NoMoreDispenserLoops/ModOptions.cs" Link="Production/ModOptions.cs" />
-    <Compile Include="../../src/NoMoreDispenserLoops/Core/DispenserFetchFilter.cs" Link="Production/Core/DispenserFetchFilter.cs" />
-    <Compile Include="../../src/NoMoreDispenserLoops/UI/DropTileHighlight.cs" Link="Production/UI/DropTileHighlight.cs" />
-    <Compile Include="../../src/NoMoreDispenserLoops/Core/NoMoreDispenserLoopsComponent.cs" Link="Production/Core/NoMoreDispenserLoopsComponent.cs" />
+    <Compile Include="../../NoMoreDispenserLoops/Core/DropTileRegistry.cs" Link="Production/Core/DropTileRegistry.cs" />
+    <Compile Include="../../NoMoreDispenserLoops/ModOptions.cs" Link="Production/ModOptions.cs" />
+    <Compile Include="../../NoMoreDispenserLoops/Core/DispenserFetchFilter.cs" Link="Production/Core/DispenserFetchFilter.cs" />
+    <Compile Include="../../NoMoreDispenserLoops/UI/DropTileHighlight.cs" Link="Production/UI/DropTileHighlight.cs" />
+    <Compile Include="../../NoMoreDispenserLoops/Core/NoMoreDispenserLoopsComponent.cs" Link="Production/Core/NoMoreDispenserLoopsComponent.cs" />
   </ItemGroup>
 </Project>
