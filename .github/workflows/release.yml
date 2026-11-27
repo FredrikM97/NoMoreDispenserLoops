@@ -163,7 +163,7 @@ jobs:
         shell: bash
         run: bash "$RELEASE_SCRIPTS/download-workshop.sh"
       - name: Publish to Steam Workshop
-        uses: m00nl1ght-dev/steam-workshop-deploy@v4
+        uses: m00nl1ght-dev/steam-workshop-deploy@7abf9c7628c3bc79229c9bca93f7a7296fa82428 # v4
         with:
           username: ${{ secrets.STEAM_USERNAME }}
           configVdf: ${{ secrets.STEAM_CONFIG_VDF }}
