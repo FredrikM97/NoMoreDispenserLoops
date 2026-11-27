@@ -62,7 +62,7 @@ for project in "${projects[@]}"; do
     exit 1
   fi
   initial_versions+=("$initial_version")
-  mods=$(jq --arg name "$mod" --arg workshop_id "$workshop_id" \
+  mods=$(jq -c --arg name "$mod" --arg workshop_id "$workshop_id" \
     '. + [{name: $name, workshop_id: $workshop_id}]' <<< "$mods")
 done
 

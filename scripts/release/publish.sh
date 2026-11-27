@@ -26,11 +26,12 @@ if [[ ${#packages[@]} -eq 0 ]]; then
   echo "::error::No mod packages were created."
   exit 1
 fi
+assets=$(gh release view unreleased --json assets --jq '.assets[].name')
 while IFS= read -r asset; do
   if [[ "$asset" == *.zip && ! -e "$RUNNER_TEMP/package/$asset" ]]; then
     gh release delete-asset unreleased "$asset" --yes
   fi
-done < <(gh release view unreleased --json assets --jq -r '.assets[].name')
+done <<< "$assets"
 gh release upload unreleased "${packages[@]}" --clobber
 gh release edit unreleased --tag "$TAG" --title "$TAG" \
   --notes-file release-notes.md --target "$COMMIT" --draft=false --latest
